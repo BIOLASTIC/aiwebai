@@ -119,14 +119,14 @@ class PasswordResetToken(Base):
 class UploadedFile(Base):
     __tablename__ = "uploaded_files"
 
-    id = Column(Integer, primary_key=True)
-    file_id = Column(String(64), unique=True, index=True)
-    filename = Column(String(255))
-    mime_type = Column(String(100))
-    size_bytes = Column(Integer)
-    storage_path = Column(String(512))
-    purpose = Column(String(50))
-    owner_user_id = Column(Integer, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(String(64), unique=True, index=True, nullable=False)
+    filename = Column(String(255), nullable=False)
+    mime_type = Column(String(100), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    storage_path = Column(String(512), nullable=False)
+    purpose = Column(String(50), nullable=False)
+    owner_user_id = Column(Integer, index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
