@@ -5,6 +5,12 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import { toast } from 'sonner'
+import ModelSelector from '../components/playground/ModelSelector'
+import AccountSelector from '../components/playground/AccountSelector'
+import ChatPanel from '../components/playground/ChatPanel'
+import ImagePanel from '../components/playground/ImagePanel'
+import VideoPanel from '../components/playground/VideoPanel'
+import JobStatusCard from '../components/playground/JobStatusCard'
 
 const API_BASE = `http://${window.location.hostname}:6400`
 
@@ -70,7 +76,11 @@ const Playground = () => {
   }, [])
 
   useEffect(() => { saveChats(chats) }, [chats])
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [activeChat?.messages])
+  useEffect(() => { 
+    if (bottomRef.current && typeof bottomRef.current.scrollIntoView === 'function') {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' }) 
+    }
+  }, [activeChat?.messages])
 
   const newChat = () => {
     const chat: Chat = { id: generateId(), title: 'New Chat', messages: [], createdAt: Date.now() }
@@ -164,6 +174,30 @@ const Playground = () => {
     }
   }
 
+  // Render the appropriate panel based on selected tool
+  const renderPanel = () => {
+    if (!activeChat) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 space-y-3">
+          <Bot size={48} className="opacity-20" />
+          <p className="text-sm">Select a tool and start chatting</p>
+        </div>
+      );
+    }
+
+    switch (selectedTool) {
+      case 'chat':
+        return <ChatPanel messages={activeChat.messages} isLoading={isLoading} />;
+      case 'image':
+        return <ImagePanel messages={activeChat.messages} isLoading={isLoading} />;
+      case 'video':
+        return <VideoPanel messages={activeChat.messages} isLoading={isLoading} />;
+      default:
+        // For music and research, we can reuse ImagePanel as it has similar display logic
+        return <ImagePanel messages={activeChat.messages} isLoading={isLoading} />;
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden">
       {/* Sidebar */}
@@ -210,67 +244,25 @@ const Playground = () => {
             ))}
           </div>
 
-          <label className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span className="font-medium">Account:</span>
-            <select value={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)}
-              className="bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-2 py-1.5 text-xs outline-none">
-              <option value="auto">Auto</option>
-              {accounts.map(a => (
-                <option key={a.id} value={String(a.id)}>
-                  {a.label} {a.health_status === 'healthy' ? '✓' : '?'}
-                </option>
-              ))}
-            </select>
-          </label>
+          <AccountSelector 
+            accounts={accounts} 
+            selectedAccountId={selectedAccountId} 
+            onSelect={setSelectedAccountId} 
+          />
 
-          {selectedTool === 'chat' && (
-            <label className="flex items-center gap-1.5 text-xs text-gray-500">
-              <Zap size={12} className="text-yellow-500" />
-              <span className="font-medium">Model:</span>
-              <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)}
-                className="bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-2 py-1.5 text-xs outline-none max-w-[180px]">
-                {models.length > 0
-                  ? models.map(m => <option key={m.id} value={m.provider_model_name}>{m.display_name}</option>)
-                  : <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>}
-              </select>
-            </label>
+          {['chat', 'image', 'video'].includes(selectedTool) && (
+            <ModelSelector 
+              feature={selectedTool} 
+              models={models}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+            />
           )}
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-          {(!activeChat || activeChat.messages.length === 0) ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 space-y-3">
-              <Bot size={48} className="opacity-20" />
-              <p className="text-sm">Select a tool and start chatting</p>
-            </div>
-          ) : activeChat.messages.map((msg, i) => (
-            <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Bot size={16} className="text-blue-600 dark:text-blue-400" />
-                </div>
-              )}
-              <div className={`max-w-[72%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-br-sm'
-                  : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-sm shadow-sm'
-              }`}>
-                {msg.content}
-                {msg.imageUrl && <img src={msg.imageUrl} alt="generated" className="mt-3 rounded-xl max-w-full max-h-64 object-contain" />}
-                {msg.jobId && !msg.imageUrl && msg.content.endsWith('…') && (
-                  <div className="flex items-center gap-2 mt-2 text-xs opacity-60"><Loader2 size={11} className="animate-spin" /> Processing…</div>
-                )}
-              </div>
-              {msg.role === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <User size={16} className="text-gray-600 dark:text-gray-400" />
-                </div>
-              )}
-            </div>
-          ))}
-          <div ref={bottomRef} />
-        </div>
+        {renderPanel()}
+        <div ref={bottomRef} />
 
         {/* Input */}
         <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-4">

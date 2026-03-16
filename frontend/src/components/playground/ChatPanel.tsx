@@ -1,0 +1,96 @@
+import React, { useState } from 'react';
+import { Bot, User, Loader2 } from 'lucide-react';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  imageUrl?: string;
+  jobId?: string;
+  ts: number;
+}
+
+interface ChatPanelProps {
+  messages: Message[];
+  isLoading: boolean;
+}
+
+const ChatPanel: React.FC<ChatPanelProps> = ({ messages, isLoading }) => {
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+
+  return (
+    <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+      {messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 space-y-3">
+          <Bot size={48} className="opacity-20" />
+          <p className="text-sm">Start chatting with Gemini</p>
+        </div>
+      ) : (
+        messages.map((msg, i) => (
+          <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            {msg.role === 'assistant' && (
+              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Bot size={16} className="text-blue-600 dark:text-blue-400" />
+              </div>
+            )}
+            <div 
+              className={`max-w-[72%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-blue-600 text-white rounded-br-sm'
+                  : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-sm shadow-sm'
+              }`}
+            >
+              {msg.content}
+              {msg.imageUrl && (
+                <img 
+                  src={msg.imageUrl} 
+                  alt="generated" 
+                  className="mt-3 rounded-xl max-w-full max-h-64 object-contain cursor-pointer"
+                  onClick={() => setExpandedImage(msg.imageUrl!)}
+                />
+              )}
+              {msg.jobId && !msg.imageUrl && msg.content.endsWith('…') && (
+                <div className="flex items-center gap-2 mt-2 text-xs opacity-60">
+                  <Loader2 size={11} className="animate-spin" /> Processing…
+                </div>
+              )}
+            </div>
+            {msg.role === 'user' && (
+              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <User size={16} className="text-gray-600 dark:text-gray-400" />
+              </div>
+            )}
+          </div>
+        ))
+      )}
+      
+      {isLoading && (
+        <div className="flex gap-3 justify-start">
+          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Bot size={16} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="max-w-[72%] rounded-2xl px-4 py-3 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-sm shadow-sm">
+            <div className="flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin" /> Thinking...
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for expanded image */}
+      {expandedImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setExpandedImage(null)}
+        >
+          <img 
+            src={expandedImage} 
+            alt="expanded" 
+            className="max-w-full max-h-full object-contain"
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ChatPanel;
