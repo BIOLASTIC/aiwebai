@@ -16,20 +16,31 @@ router = APIRouter(prefix="/native/tasks", tags=["native-tasks"])
 class TaskRequest(BaseModel):
     prompt: str
     model: Optional[str] = None
+    reference_file_ids: list[str] = []
+    account_id: Optional[int] = None
 
 
-async def run_task_background(job_id: int, task_type: str, prompt: str):
+async def run_task_background(job_id: int, task_type: str, request_data: dict):
     async with AsyncSessionLocal() as db:
         await JobManager.update_job(db, job_id, "processing", 0.1)
+
+        prompt = request_data.get("prompt", "")
+        model = request_data.get("model", None)
+        reference_file_ids = request_data.get("reference_file_ids", [])
+        account_id = request_data.get("account_id", None)
 
         try:
             from backend.app.adapters.router import adapter_router
 
             if task_type == "video":
                 from backend.app.adapters.mcpcli_adapter import McpCliAdapter
+                from pathlib import Path
 
                 adapter = McpCliAdapter()
-                result = await adapter.generate_video(prompt)
+                video_result = await adapter.generate_video(
+                    prompt, model=model, account_id=account_id, reference_files=reference_file_ids, options={}
+                )
+                result = str(video_result.video_paths[0]) if video_result.video_paths else ""
             elif task_type == "music":
                 from backend.app.adapters.mcpcli_adapter import McpCliAdapter
 
@@ -43,7 +54,9 @@ async def run_task_background(job_id: int, task_type: str, prompt: str):
             elif task_type == "image":
                 from backend.app.schemas.native import ImageGenerationRequest
 
-                req = ImageGenerationRequest(prompt=prompt)
+                req = ImageGenerationRequest(
+                    prompt=prompt, model=model, reference_file_ids=reference_file_ids, account_id=account_id
+                )
                 res = await adapter_router.generate_image(req)
                 data = res.get("data", [])
                 if not data:
@@ -72,8 +85,8 @@ async def create_image_task(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_user_by_key_or_jwt),
 ):
-    job = await JobManager.create_job(db, None, None, "image")
-    background_tasks.add_task(run_task_background, job.id, "image", request.prompt)
+    job = await JobManager.create_job(db, None, request.account_id, "image")
+    background_tasks.add_task(run_task_background, job.id, "image", request.model_dump())
     return {"job_id": job.id, "status": "pending"}
 
 
@@ -86,10 +99,10 @@ async def create_video_task(
 ):
     # 1. Create RequestLog (Skipped for brevity, but should be there)
     # 2. Create Job
-    job = await JobManager.create_job(db, None, None, "video")
+    job = await JobManager.create_job(db, None, request.account_id, "video")
 
     # 3. Queue task
-    background_tasks.add_task(run_task_background, job.id, "video", request.prompt)
+    background_tasks.add_task(run_task_background, job.id, "video", request.model_dump())
 
     return {"job_id": job.id, "status": "pending"}
 
@@ -101,8 +114,8 @@ async def create_music_task(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_user_by_key_or_jwt),
 ):
-    job = await JobManager.create_job(db, None, None, "music")
-    background_tasks.add_task(run_task_background, job.id, "music", request.prompt)
+    job = await JobManager.create_job(db, None, request.account_id, "music")
+    background_tasks.add_task(run_task_background, job.id, "music", request.model_dump())
     return {"job_id": job.id, "status": "pending"}
 
 
@@ -113,8 +126,8 @@ async def create_research_task(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_user_by_key_or_jwt),
 ):
-    job = await JobManager.create_job(db, None, None, "research")
-    background_tasks.add_task(run_task_background, job.id, "research", request.prompt)
+    job = await JobManager.create_job(db, None, request.account_id, "research")
+    background_tasks.add_task(run_task_background, job.id, "research", request.model_dump())
     return {"job_id": job.id, "status": "pending"}
 
 
