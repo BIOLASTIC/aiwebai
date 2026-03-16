@@ -47,6 +47,7 @@
 - Image generation works with gemini-2.0-flash model via webapi adapter
 - Video/Music/Research require gemcli authentication with a Google account that has Gemini Advanced access
 - The current cookies are valid for webapi but not for mcp-cli (which handles video/music/research)
+<<<<<<< HEAD
 - To enable video/music/research: Run `gemcli login` interactively with a Gemini Advanced account
 - Fixed auth error propagation for mcp-cli tasks: auth failures now mark jobs as failed instead of returning error strings as result URLs
 - Headless auth option: use `gemcli login --manual` to paste cookies (interactive `gemcli login` opens Chrome via CDP)
@@ -57,6 +58,11 @@
 - Native tasks API now accepts `reference_file_ids` and `account_id` fields for targeted generation
 - Job Lifecycle States: Video/music/research jobs now track proper lifecycle events with timestamps via new job_events table
 - Playground Components: Split into focused components (ChatPanel, ImagePanel, VideoPanel, FilePicker, ModelSelector, AccountSelector, JobStatusCard) for better maintainability
+=======
+- To enable video/music/research: User needs to run `gemcli login` interactively with a Google account that has Gemini Advanced
+- Uploaded file metadata model added for reference uploads
+- Uploaded file required fields enforced with test coverage
+>>>>>>> generations-2.0
 
 ### What's Working:
 - Backend API on http://0.0.0.0:6400

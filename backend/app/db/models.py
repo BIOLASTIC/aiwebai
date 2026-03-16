@@ -116,6 +116,20 @@ class PasswordResetToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class UploadedFile(Base):
+    __tablename__ = "uploaded_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(String(64), unique=True, index=True, nullable=False)
+    filename = Column(String(255), nullable=False)
+    mime_type = Column(String(100), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    storage_path = Column(String(512), nullable=False)
+    purpose = Column(String(50), nullable=False)
+    owner_user_id = Column(Integer, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Webhook(Base):
     __tablename__ = "webhooks"
 
@@ -126,6 +140,7 @@ class Webhook(Base):
     secret = Column(String)
     status = Column(String, default="active")
     created_at = Column(DateTime, default=datetime.utcnow)
+<<<<<<< HEAD
 
 
 class UploadedFile(Base):
@@ -139,3 +154,5 @@ class UploadedFile(Base):
     purpose = Column(String, default="fine-tune")
     user_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
+=======
+>>>>>>> generations-2.0
