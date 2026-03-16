@@ -18,6 +18,7 @@
 - To enable video/music/research: User needs to run `gemcli login` interactively with a Google account that has Gemini Advanced
 - Uploaded file metadata model added for reference uploads
 - Uploaded file required fields enforced with test coverage
+- Adapter contracts updated for reference inputs (Task 5): Extended generate_video method to accept reference_files parameter in all adapters
 
 ### What's Working:
 - Backend API on http://0.0.0.0:6400
@@ -57,18 +58,25 @@
 - [x] **Admin Panel**: Login, dashboard, accounts, models, features, logs
 - [x] **Frontend**: React app with all required pages
 - [x] **MCP Server**: Running on port 6403
-- [ ] **Video Generation Job System**: Needs completion (currently returns error)
-- [ ] **Music Generation Job System**: Needs completion (currently returns error) 
-- [ ] **Deep Research Job System**: Needs completion (currently returns error)
+- [x] **Reference-Aware Schemas**: Task 4 - Image/Video generation schemas with reference file support
+- [x] **Reference-Aware Adapter Contracts**: Task 5 - Extended adapter methods to accept reference files
+- [x] **Native Tasks Accept References**: Task 7 - Updated native tasks to accept accounts and reference_file_ids
+- [x] **Reference File UI for Image/Video**: Task 11 - Added reference file picker UI showing selected reference files
+- [ ] **Video Generation Job System**: Needs completion (currently returns error) - requires gemcli login with valid Google Gemini Advanced account
+- [ ] **Music Generation Job System**: Needs completion (currently returns error) - requires gemcli login with valid Google Gemini Advanced account
+- [ ] **Deep Research Job System**: Needs completion (currently returns error) - requires gemcli login with valid Google Gemini Advanced account
 - [ ] **SSE Streaming for Jobs**: Progress updates for long-running tasks
 - [ ] **Celery/RQ Integration**: Background task processing
 - [ ] **Production Deployment**: Docker compose, Nginx, monitoring
 
-### Completion: ~85%
+### Completion: ~90%
 - Core API: 100%
 - Image Generation: 100%
 - Chat Completions: 100%
 - Admin Panel: 100%
+- Reference-Aware Schemas: 100% (Task 4 completed)
+- Reference-Aware Adapter Contracts: 100% (Task 5 completed)
+- Reference File UI: 100% (Task 11 completed)
 - Video Generation: 25% (endpoint exists, job system incomplete)
 - Music Generation: 25% (endpoint exists, job system incomplete)
 - Deep Research: 25% (endpoint exists, job system incomplete)

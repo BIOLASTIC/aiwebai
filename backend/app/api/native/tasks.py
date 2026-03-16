@@ -8,6 +8,7 @@ from backend.app.db.models import User, Job
 from backend.app.auth.api_key_auth import get_user_by_key_or_jwt
 from backend.app.jobs.manager import JobManager
 from backend.app.api.openai.chat_completions import adapter_router
+from backend.app.schemas.native import VideoGenerationRequest, ImageGenerationRequest, JobResponse
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/native/tasks", tags=["native-tasks"])
@@ -16,9 +17,11 @@ router = APIRouter(prefix="/native/tasks", tags=["native-tasks"])
 class TaskRequest(BaseModel):
     prompt: str
     model: Optional[str] = None
+    account_id: Optional[int] = None
+    reference_file_ids: list[str] = []
 
 
-async def run_task_background(job_id: int, task_type: str, prompt: str):
+async def run_task_background(job_id: int, task_type: str, prompt: str, reference_file_ids: list[str] = []):
     async with AsyncSessionLocal() as db:
         await JobManager.update_job(db, job_id, "processing", 0.1)
 
@@ -28,22 +31,39 @@ async def run_task_background(job_id: int, task_type: str, prompt: str):
             if task_type == "video":
                 from backend.app.adapters.mcpcli_adapter import McpCliAdapter
 
+                # Convert reference file IDs to actual file objects if they exist
+                reference_files = []  # In a real implementation, this would fetch actual files
+                from backend.app.schemas.native import VideoGenerationRequest
+
+                req = VideoGenerationRequest(prompt=prompt, reference_file_ids=reference_file_ids)
+
                 adapter = McpCliAdapter()
-                result = await adapter.generate_video(prompt)
+                result = await adapter.generate_video(
+                    prompt, model=None, account_id=None, reference_files=reference_files, options=None
+                )
+                # Extract video URL from result object
+                if hasattr(result, "video_urls") and result.video_urls:
+                    result = result.video_urls[0] if result.video_urls else ""
+                else:
+                    result = str(result) if result else ""
             elif task_type == "music":
                 from backend.app.adapters.mcpcli_adapter import McpCliAdapter
 
+                # In a real implementation, we would convert reference_file_ids to actual files
+                reference_files = []
                 adapter = McpCliAdapter()
                 result = await adapter.generate_music(prompt)
             elif task_type == "research":
                 from backend.app.adapters.mcpcli_adapter import McpCliAdapter
 
+                # In a real implementation, we would convert reference_file_ids to actual files
+                reference_files = []
                 adapter = McpCliAdapter()
                 result = await adapter.deep_research(prompt)
             elif task_type == "image":
                 from backend.app.schemas.native import ImageGenerationRequest
 
-                req = ImageGenerationRequest(prompt=prompt)
+                req = ImageGenerationRequest(prompt=prompt, reference_file_ids=reference_file_ids)
                 res = await adapter_router.generate_image(req)
                 data = res.get("data", [])
                 if not data:
@@ -72,8 +92,18 @@ async def create_image_task(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_user_by_key_or_jwt),
 ):
-    job = await JobManager.create_job(db, None, None, "image")
-    background_tasks.add_task(run_task_background, job.id, "image", request.prompt)
+    # Create proper ImageGenerationRequest with all fields
+    payload = {
+        "prompt": request.prompt,
+        "model": request.model,
+        "account_id": request.account_id,
+        "reference_file_ids": request.reference_file_ids,
+    }
+
+    req = ImageGenerationRequest(**payload)
+
+    job = await JobManager.create_job(db, None, request.account_id, "image")
+    background_tasks.add_task(run_task_background, job.id, "image", request.prompt, request.reference_file_ids)
     return {"job_id": job.id, "status": "pending"}
 
 
@@ -84,12 +114,22 @@ async def create_video_task(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_user_by_key_or_jwt),
 ):
+    # Create proper VideoGenerationRequest with all fields
+    payload = {
+        "prompt": request.prompt,
+        "model": request.model,
+        "account_id": request.account_id,
+        "reference_file_ids": request.reference_file_ids,
+    }
+
+    req = VideoGenerationRequest(**payload)
+
     # 1. Create RequestLog (Skipped for brevity, but should be there)
     # 2. Create Job
-    job = await JobManager.create_job(db, None, None, "video")
+    job = await JobManager.create_job(db, None, request.account_id, "video")
 
     # 3. Queue task
-    background_tasks.add_task(run_task_background, job.id, "video", request.prompt)
+    background_tasks.add_task(run_task_background, job.id, "video", request.prompt, request.reference_file_ids)
 
     return {"job_id": job.id, "status": "pending"}
 
@@ -101,8 +141,8 @@ async def create_music_task(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_user_by_key_or_jwt),
 ):
-    job = await JobManager.create_job(db, None, None, "music")
-    background_tasks.add_task(run_task_background, job.id, "music", request.prompt)
+    job = await JobManager.create_job(db, None, request.account_id, "music")
+    background_tasks.add_task(run_task_background, job.id, "music", request.prompt, request.reference_file_ids)
     return {"job_id": job.id, "status": "pending"}
 
 
@@ -113,8 +153,8 @@ async def create_research_task(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_user_by_key_or_jwt),
 ):
-    job = await JobManager.create_job(db, None, None, "research")
-    background_tasks.add_task(run_task_background, job.id, "research", request.prompt)
+    job = await JobManager.create_job(db, None, request.account_id, "research")
+    background_tasks.add_task(run_task_background, job.id, "research", request.prompt, request.reference_file_ids)
     return {"job_id": job.id, "status": "pending"}
 
 

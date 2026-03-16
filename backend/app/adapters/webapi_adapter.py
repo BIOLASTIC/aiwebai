@@ -1,8 +1,9 @@
 from typing import AsyncGenerator, List, Optional, Dict, Any
+from pathlib import Path
 import time
 import uuid
 from gemini_webapi import GeminiClient, ChatSession, ModelOutput
-from backend.app.adapters.base import BaseAdapter
+from backend.app.adapters.base import BaseAdapter, VideoResult
 from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatMessage
 from backend.app.schemas.native import ImageGenerationRequest
 
@@ -91,19 +92,22 @@ class WebApiAdapter(BaseAdapter):
 
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
         from backend.app.logging.structured import logger
+
         try:
             logger.info("WebApiAdapter.generate_image starting", prompt=request.prompt, model=request.model)
             # Pass model if provided and valid in gemini-webapi context
             kwargs = {}
             if request.model and request.model != "gemini-image-latest":
                 kwargs["model"] = request.model
-            
+
             output = await self.client.generate_content(request.prompt, **kwargs)
-            logger.info("WebApiAdapter.generate_image output received", 
-                        has_images=hasattr(output, "images"),
-                        num_images=len(output.images) if hasattr(output, "images") else 0,
-                        text=output.text[:100] if hasattr(output, "text") else "N/A")
-            
+            logger.info(
+                "WebApiAdapter.generate_image output received",
+                has_images=hasattr(output, "images"),
+                num_images=len(output.images) if hasattr(output, "images") else 0,
+                text=output.text[:100] if hasattr(output, "text") else "N/A",
+            )
+
             image_urls = [{"url": img.url} for img in output.images] if hasattr(output, "images") else []
             return {"created": int(time.time()), "data": image_urls}
         except Exception as e:
@@ -126,5 +130,22 @@ class WebApiAdapter(BaseAdapter):
             return True
         except Exception as e:
             from backend.app.logging.structured import logger
+
             logger.warning("WebApiAdapter health_check failed", error=type(e).__name__, detail=str(e))
             return False
+
+    async def generate_video(
+        self,
+        prompt: str,
+        model: str | None,
+        account_id: int | None,
+        reference_files: list[Path] | None,
+        options: dict | None,
+    ) -> VideoResult:
+        """Generate video using the web API. Currently not implemented for Web API."""
+        from backend.app.logging.structured import logger
+
+        logger.info("WebApiAdapter.generate_video called", prompt=prompt, model=model)
+
+        # Web API doesn't support video generation, return empty result
+        return VideoResult(video_urls=[], metadata={"error": "Video generation not supported via Web API"})

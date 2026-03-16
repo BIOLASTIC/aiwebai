@@ -4,7 +4,8 @@ import json
 import time
 import uuid
 from typing import AsyncGenerator, List, Optional, Dict, Any
-from backend.app.adapters.base import BaseAdapter
+from pathlib import Path
+from backend.app.adapters.base import BaseAdapter, VideoResult
 from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatMessage
 from backend.app.schemas.native import ImageGenerationRequest
 
@@ -139,10 +140,27 @@ class McpCliAdapter(BaseAdapter):
         # Parse output...
         return {"raw": output}
 
-    async def generate_video(self, prompt: str) -> str:
-        # gemcli video "prompt"
-        output = await self._run_gemcli(["video", prompt])
-        return output.strip()
+    async def generate_video(
+        self,
+        prompt: str,
+        model: str | None,
+        account_id: int | None,
+        reference_files: list[Path] | None,
+        options: dict | None,
+    ) -> VideoResult:
+        # gemcli video "prompt" with potential reference file support in the future
+        args = ["video", prompt]
+
+        # Process reference files if provided
+        if reference_files:
+            # In the future, this could pass reference files to the CLI
+            # For now, just logging for awareness
+            from backend.app.logging.structured import logger
+
+            logger.info("Reference files provided for video generation", count=len(reference_files))
+
+        output = await self._run_gemcli(args)
+        return VideoResult(video_urls=[output.strip()], metadata={"source": "gemcli"})
 
     async def generate_music(self, prompt: str) -> str:
         # gemcli music "prompt"
