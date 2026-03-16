@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import AsyncGenerator, List, Optional, Dict, Any
+from pathlib import Path
 from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse
-from backend.app.schemas.native import ImageGenerationRequest, JobResponse
+from backend.app.schemas.native import ImageGenerationRequest, JobResponse, VideoResult
+
 
 class BaseAdapter(ABC):
     @abstractmethod
@@ -24,3 +26,13 @@ class BaseAdapter(ABC):
     async def health_check(self) -> bool:
         pass
 
+    @abstractmethod
+    async def generate_video(
+        self,
+        prompt: str,
+        model: str | None,
+        account_id: int | None,
+        reference_files: list[Path] | None,
+        options: dict | None,
+    ) -> VideoResult:
+        pass

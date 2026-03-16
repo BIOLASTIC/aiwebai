@@ -4,9 +4,10 @@ import json
 import time
 import uuid
 from typing import AsyncGenerator, List, Optional, Dict, Any
+from pathlib import Path
 from backend.app.adapters.base import BaseAdapter
 from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatMessage
-from backend.app.schemas.native import ImageGenerationRequest
+from backend.app.schemas.native import ImageGenerationRequest, VideoResult
 
 
 class McpCliAdapter(BaseAdapter):
@@ -139,17 +140,53 @@ class McpCliAdapter(BaseAdapter):
         # Parse output...
         return {"raw": output}
 
-    async def generate_video(self, prompt: str) -> str:
-        # gemcli video "prompt"
-        output = await self._run_gemcli(["video", prompt])
-        return output.strip()
+    def _raise_if_auth_error(self, output: str) -> None:
+        lowered = output.lower()
+        if (
+            "not logged in" in lowered
+            or "no valid authentication" in lowered
+            or "session expired" in lowered
+            or "gemcli login" in lowered
+            or lowered.startswith("error:")
+        ):
+            raise Exception(output.strip())
+
+    async def generate_video(
+        self,
+        prompt: str,
+        model: str | None,
+        account_id: int | None,
+        reference_files: list[Path] | None,
+        options: dict | None,
+    ) -> VideoResult:
+        # Prepare arguments for gemcli video command
+        args = ["video", prompt]
+
+        # Add model if specified
+        if model:
+            args.extend(["--model", model])
+
+        # Handle reference files if provided
+        if reference_files:
+            for ref_file in reference_files:
+                args.extend(["--reference", str(ref_file)])
+
+        output = await self._run_gemcli(args)
+        self._raise_if_auth_error(output)
+
+        # Return VideoResult with the output as a video path
+        from pathlib import Path
+
+        return VideoResult(video_paths=[Path(output.strip())], metadata={"model": model})
 
     async def generate_music(self, prompt: str) -> str:
         # gemcli music "prompt"
         output = await self._run_gemcli(["music", prompt])
+        self._raise_if_auth_error(output)
         return output.strip()
 
     async def deep_research(self, prompt: str) -> str:
         # gemcli research "prompt"
         output = await self._run_gemcli(["research", prompt])
+        self._raise_if_auth_error(output)
         return output.strip()
