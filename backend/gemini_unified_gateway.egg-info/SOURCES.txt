@@ -24,6 +24,7 @@ app/api/mcp/server.py
 app/api/native/extensions.py
 app/api/native/gems.py
 app/api/native/history.py
+app/api/native/jobs.py
 app/api/native/limits.py
 app/api/native/tasks.py
 app/api/openai/chat_completions.py
@@ -45,8 +46,10 @@ app/schemas/accounts.py
 app/schemas/admin.py
 app/schemas/native.py
 app/schemas/openai.py
+app/storage/files.py
 app/utils/encryption.py
 app/utils/events.py
+app/utils/sse.py
 cli/main.py
 gemini_unified_gateway.egg-info/PKG-INFO
 gemini_unified_gateway.egg-info/SOURCES.txt

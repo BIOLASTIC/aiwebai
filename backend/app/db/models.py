@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON, ForeignKey, Text, Float
 from sqlalchemy.orm import relationship
-from backend.app.db.engine import Base
+from .engine import Base
 
 
 class User(Base):
@@ -140,19 +140,3 @@ class Webhook(Base):
     secret = Column(String)
     status = Column(String, default="active")
     created_at = Column(DateTime, default=datetime.utcnow)
-<<<<<<< HEAD
-
-
-class UploadedFile(Base):
-    __tablename__ = "uploaded_files"
-
-    id = Column(Integer, primary_key=True, index=True)
-    file_id = Column(String, unique=True, index=True, nullable=False)
-    filename = Column(String, nullable=False)
-    mime_type = Column(String, nullable=False)
-    size = Column(Integer, nullable=False)
-    purpose = Column(String, default="fine-tune")
-    user_id = Column(Integer, ForeignKey("users.id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
-=======
->>>>>>> generations-2.0

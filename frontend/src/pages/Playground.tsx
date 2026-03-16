@@ -11,6 +11,7 @@ import ChatPanel from '../components/playground/ChatPanel'
 import ImagePanel from '../components/playground/ImagePanel'
 import VideoPanel from '../components/playground/VideoPanel'
 import JobStatusCard from '../components/playground/JobStatusCard'
+import FilePicker from '../components/playground/FilePicker'
 
 const API_BASE = `http://${window.location.hostname}:6400`
 
@@ -65,6 +66,7 @@ const Playground = () => {
   const [models, setModels] = useState<ModelItem[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<string>('auto')
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash')
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -155,7 +157,46 @@ const Playground = () => {
         }, { headers })
         appendMessage(chatId, { role: 'assistant', content: res.data.choices[0].message.content, ts: Date.now() })
       } else {
-        const res = await axios.post(`${API_BASE}/native/tasks/${selectedTool}`, { prompt: userMsg.content }, { headers })
+        // If we have files to upload, upload them first and get file IDs
+        let uploadedFileIds: string[] = [];
+        if (['image', 'video'].includes(selectedTool) && selectedFiles.length > 0) {
+          const formData = new FormData();
+          // Create a temporary formdata to upload files
+          selectedFiles.forEach((file, index) => {
+            formData.append(`file`, file, file.name);
+          });
+          
+          try {
+            // Upload the files to the server
+            const uploadResponse = await axios.post(`${API_BASE}/v1/files`, formData, { 
+              headers: { ...headers, 'Content-Type': 'multipart/form-data' } 
+            });
+            
+            // Extract file IDs from response (assuming each file upload returns an ID)
+            // The API returns a list of file objects
+            if (Array.isArray(uploadResponse.data)) {
+              uploadedFileIds = uploadResponse.data.map((file: any) => file.id);
+            } else if (uploadResponse.data && uploadResponse.data.id) {
+              uploadedFileIds = [uploadResponse.data.id]; // single file
+            }
+          } catch (uploadError) {
+            console.error('File upload failed:', uploadError);
+          }
+        }
+        
+        // Prepare request payload with reference files and account/model info
+        const requestPayload: any = { 
+          prompt: userMsg.content,
+          model: selectedModel,
+          account_id: selectedAccountId !== 'auto' ? parseInt(selectedAccountId) : undefined
+        };
+        
+        // Add reference file IDs if available for image/video tools
+        if (uploadedFileIds.length > 0) {
+          requestPayload.reference_file_ids = uploadedFileIds;
+        }
+        
+        const res = await axios.post(`${API_BASE}/native/tasks/${selectedTool}`, requestPayload, { headers })
         const jobId: string = res.data.job_id
         appendMessage(chatId, {
           role: 'assistant',
@@ -164,6 +205,11 @@ const Playground = () => {
           ts: Date.now(),
         })
         pollJob(chatId, jobId, selectedTool)
+        
+        // Clear selected files after successful submission
+        if (uploadedFileIds.length > 0) {
+          setSelectedFiles([]);
+        }
       }
     } catch (err: any) {
       const detail = err.response?.data?.detail || err.message
@@ -189,12 +235,27 @@ const Playground = () => {
       case 'chat':
         return <ChatPanel messages={activeChat.messages} isLoading={isLoading} />;
       case 'image':
-        return <ImagePanel messages={activeChat.messages} isLoading={isLoading} />;
+        return <ImagePanel 
+          messages={activeChat.messages} 
+          isLoading={isLoading} 
+          selectedFiles={selectedFiles}
+          onFileSelect={setSelectedFiles}
+        />;
       case 'video':
-        return <VideoPanel messages={activeChat.messages} isLoading={isLoading} />;
+        return <VideoPanel 
+          messages={activeChat.messages} 
+          isLoading={isLoading} 
+          selectedFiles={selectedFiles}
+          onFileSelect={setSelectedFiles}
+        />;
       default:
         // For music and research, we can reuse ImagePanel as it has similar display logic
-        return <ImagePanel messages={activeChat.messages} isLoading={isLoading} />;
+        return <ImagePanel 
+          messages={activeChat.messages} 
+          isLoading={isLoading} 
+          selectedFiles={selectedFiles}
+          onFileSelect={setSelectedFiles}
+        />;
     }
   };
 
@@ -257,6 +318,30 @@ const Playground = () => {
               selectedModel={selectedModel}
               onModelChange={setSelectedModel}
             />
+          )}
+          
+          {['image', 'video'].includes(selectedTool) && (
+            <div className="flex items-center gap-2">
+              <FilePicker 
+                onFileSelect={(files) => setSelectedFiles(prev => [...prev, ...files])}
+                acceptedTypes={selectedTool === 'image' ? 'image/*' : 'image/*,video/*'}
+                multiple={true}
+              />
+              {selectedFiles.length > 0 && (
+                <div className="flex gap-1">
+                  {selectedFiles.slice(0, 2).map((file, index) => (
+                    <span key={index} className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 rounded">
+                      {file.name.substring(0, 8)}...
+                    </span>
+                  ))}
+                  {selectedFiles.length > 2 && (
+                    <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 rounded">
+                      +{selectedFiles.length - 2}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
 

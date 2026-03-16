@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Bot, User, Loader2, Image as ImageIcon } from 'lucide-react';
+import FilePicker from './FilePicker';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -12,9 +13,11 @@ interface Message {
 interface ImagePanelProps {
   messages: Message[];
   isLoading: boolean;
+  selectedFiles?: File[];
+  onFileSelect?: (files: File[]) => void;
 }
 
-const ImagePanel: React.FC<ImagePanelProps> = ({ messages, isLoading }) => {
+const ImagePanel: React.FC<ImagePanelProps> = ({ messages, isLoading, selectedFiles = [], onFileSelect }) => {
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
   return (
@@ -61,6 +64,16 @@ const ImagePanel: React.FC<ImagePanelProps> = ({ messages, isLoading }) => {
             )}
           </div>
         ))
+      )}
+      
+      {selectedFiles.length > 0 && (
+        <div className="flex flex-wrap gap-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          {selectedFiles.map((file, index) => (
+            <div key={index} className="flex items-center gap-2 bg-white dark:bg-gray-700 px-3 py-2 rounded-md shadow-sm">
+              <span className="text-sm truncate max-w-xs">{file.name}</span>
+            </div>
+          ))}
+        </div>
       )}
       
       {isLoading && (
