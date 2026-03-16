@@ -24,3 +24,6 @@ redbeat-schedule
 
 # PIDs
 .dev.pids
+
+# Git worktrees
+.worktrees/
