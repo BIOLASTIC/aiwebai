@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+*.db
+*.log
+
+# Node.js
+node_modules/
+dist/
+.DS_Store
+
+# Celery
+celerybeat-schedule
+redbeat-schedule
+
+# IDEs
+.vscode/
+.idea/
+
+# PIDs
+.dev.pids

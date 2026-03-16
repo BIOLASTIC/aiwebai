@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "6400:6400"
+    env_file:
+      - backend/.env
+    volumes:
+      - ./gemini_gateway.db:/app/gemini_gateway.db
+    restart: always
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "6401:6401"
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6406:6379"
+    restart: always
