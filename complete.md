@@ -58,11 +58,6 @@
 - Native tasks API now accepts `reference_file_ids` and `account_id` fields for targeted generation
 - Job Lifecycle States: Video/music/research jobs now track proper lifecycle events with timestamps via new job_events table
 - Playground Components: Split into focused components (ChatPanel, ImagePanel, VideoPanel, FilePicker, ModelSelector, AccountSelector, JobStatusCard) for better maintainability
-=======
-- To enable video/music/research: User needs to run `gemcli login` interactively with a Google account that has Gemini Advanced
-- Uploaded file metadata model added for reference uploads
-- Uploaded file required fields enforced with test coverage
->>>>>>> generations-2.0
 
 ### What's Working:
 - Backend API on http://0.0.0.0:6400
