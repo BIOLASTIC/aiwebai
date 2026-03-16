@@ -16,6 +16,7 @@
 - Video/Music/Research require gemcli authentication with a Google account that has Gemini Advanced access
 - The current cookies are valid for webapi but not for mcp-cli (which handles video/music/research)
 - To enable video/music/research: User needs to run `gemcli login` interactively with a Google account that has Gemini Advanced
+- Uploaded file metadata model added for reference uploads
 
 ### What's Working:
 - Backend API on http://0.0.0.0:6400

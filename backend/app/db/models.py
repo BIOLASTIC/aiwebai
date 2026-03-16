@@ -4,15 +4,17 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON, Foreign
 from sqlalchemy.orm import relationship
 from backend.app.db.engine import Base
 
+
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    role = Column(String, default="viewer") # admin, operator, viewer, developer
+    role = Column(String, default="viewer")  # admin, operator, viewer, developer
     status = Column(String, default="active")
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -20,7 +22,7 @@ class Account(Base):
     id = Column(Integer, primary_key=True, index=True)
     label = Column(String, nullable=False)
     owner_user_id = Column(Integer, ForeignKey("users.id"))
-    provider = Column(String, nullable=False) # webapi, mcpcli
+    provider = Column(String, nullable=False)  # webapi, mcpcli
     status = Column(String, default="active")
     region_hint = Column(String)
     language_hint = Column(String)
@@ -30,17 +32,19 @@ class Account(Base):
 
     auth_methods = relationship("AccountAuthMethod", back_populates="account")
 
+
 class AccountAuthMethod(Base):
     __tablename__ = "account_auth_methods"
 
     id = Column(Integer, primary_key=True, index=True)
     account_id = Column(Integer, ForeignKey("accounts.id"))
-    auth_type = Column(String) # cookie, apikey, browser, chrome
+    auth_type = Column(String)  # cookie, apikey, browser, chrome
     encrypted_credentials = Column(Text)
     last_refreshed = Column(DateTime)
     expires_at = Column(DateTime)
 
     account = relationship("Account", back_populates="auth_methods")
+
 
 class Model(Base):
     __tablename__ = "models"
@@ -52,6 +56,7 @@ class Model(Base):
     source_provider = Column(String)
     status = Column(String, default="active")
     discovered_at = Column(DateTime, default=datetime.utcnow)
+
 
 class RequestLog(Base):
     __tablename__ = "requests"
@@ -71,19 +76,21 @@ class RequestLog(Base):
     prompt_hash = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(Integer, primary_key=True, index=True)
     request_id = Column(Integer, ForeignKey("requests.id"))
     account_id = Column(Integer, ForeignKey("accounts.id"))
-    job_type = Column(String) # video, music, research
+    job_type = Column(String)  # video, music, research
     status = Column(String, default="pending")
     progress_pct = Column(Float, default=0.0)
     result_url = Column(String)
     error = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime)
+
 
 class ConsumerApiKey(Base):
     __tablename__ = "consumer_api_keys"
@@ -97,6 +104,7 @@ class ConsumerApiKey(Base):
     status = Column(String, default="active")
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
@@ -106,6 +114,21 @@ class PasswordResetToken(Base):
     expires_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UploadedFile(Base):
+    __tablename__ = "uploaded_files"
+
+    id = Column(Integer, primary_key=True)
+    file_id = Column(String(64), unique=True, index=True)
+    filename = Column(String(255))
+    mime_type = Column(String(100))
+    size_bytes = Column(Integer)
+    storage_path = Column(String(512))
+    purpose = Column(String(50))
+    owner_user_id = Column(Integer, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class Webhook(Base):
     __tablename__ = "webhooks"
@@ -117,6 +140,3 @@ class Webhook(Base):
     secret = Column(String)
     status = Column(String, default="active")
     created_at = Column(DateTime, default=datetime.utcnow)
-
-
-
