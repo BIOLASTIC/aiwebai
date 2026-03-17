@@ -12,7 +12,7 @@ function AdapterErrorCard({ message }: { message: string }) {
       </div>
       <p className="whitespace-pre-wrap leading-relaxed">{message}</p>
       <p className="mt-2 text-xs text-red-600 dark:text-red-300 italic">
-        Hint: Try switching the Backend selector to &quot;gemini-webapi&quot; or run{' '}
+        Hint: Try switching the Backend selector to &quot;webapi&quot; or run{' '}
         <code className="font-mono bg-red-100 dark:bg-red-900/40 px-1 rounded">gemcli login</code>{' '}
         in Terminal.
       </p>

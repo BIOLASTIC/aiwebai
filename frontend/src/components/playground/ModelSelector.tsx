@@ -92,38 +92,41 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
             }
           }
         } else {
-          // fallback: filter from provided models list
+          // fallback: filter from provided models list by feature capability
           const fallback = models.filter((m) => {
             if (feature === 'image') {
+              // Only show dedicated image model (imagen-3.0) and flash models that support images
               return (
-                m.family === 'image' ||
-                m.family === 'imagen' ||
                 m.provider_model_name.includes('imagen') ||
-                m.provider_model_name.includes('flash')
+                (m.provider_model_name.includes('flash') && !m.provider_model_name.includes('thinking'))
               );
             }
             if (feature === 'video') {
               return (
-                m.family === 'veo' ||
                 m.provider_model_name.includes('veo') ||
                 m.provider_model_name.includes('video')
               );
             }
             if (feature === 'music') {
               return (
-                m.family === 'music' ||
-                m.provider_model_name.includes('music') ||
-                (m.source_provider === 'mcpcli')
+                m.provider_model_name.includes('lyria') ||
+                m.provider_model_name.includes('music')
               );
             }
             if (feature === 'research') {
               return (
-                m.family === 'research' ||
-                m.provider_model_name.includes('research') ||
-                (m.source_provider === 'mcpcli')
+                m.provider_model_name.includes('research')
               );
             }
             return true;
+          });
+          // Sort: mcpcli dedicated models first (imagen-3.0, veo-2.0, lyria-1.0)
+          fallback.sort((a, b) => {
+            const aIsDedicated = a.provider_model_name.includes('imagen') || a.provider_model_name.includes('veo') || a.provider_model_name.includes('lyria');
+            const bIsDedicated = b.provider_model_name.includes('imagen') || b.provider_model_name.includes('veo') || b.provider_model_name.includes('lyria');
+            if (aIsDedicated && !bIsDedicated) return -1;
+            if (!aIsDedicated && bIsDedicated) return 1;
+            return 0;
           });
           if (isMounted) {
             setFilteredModels(fallback);

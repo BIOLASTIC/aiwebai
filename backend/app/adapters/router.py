@@ -90,12 +90,13 @@ class AdapterRouter:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
         if capability in {"image", "image_edit"}:
-            # For images, we usually want the WebApiAdapter if available (high quality)
-            for adapter in adapters:
-                if isinstance(adapter, WebApiAdapter):
-                    return adapter
+            # Prefer McpCliAdapter for images — webapi requires Gemini Advanced subscription
+            # which most accounts won't have; mcpcli uses imagen-3.0 directly
             for adapter in adapters:
                 if isinstance(adapter, McpCliAdapter):
+                    return adapter
+            for adapter in adapters:
+                if isinstance(adapter, WebApiAdapter):
                     return adapter
         if capability in {"video", "music", "research"}:
             for adapter in adapters:

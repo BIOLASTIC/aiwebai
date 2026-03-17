@@ -75,6 +75,15 @@ const Playground = () => {
   const [prompt, setPrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [selectedTool, setSelectedTool] = useState('chat')
+
+  // Default model per tool
+  const DEFAULT_MODEL: Record<string, string> = {
+    chat: 'gemini-2.0-flash',
+    image: 'imagen-3.0',
+    video: 'veo-2.0',
+    music: 'lyria-1.0',
+    research: 'gemini-research',
+  }
   const [accounts, setAccounts] = useState<Account[]>([])
   const [models, setModels] = useState<ModelItem[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<string>('auto')
@@ -317,7 +326,7 @@ const Playground = () => {
         <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 flex flex-wrap items-center gap-3">
           <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-0.5">
             {TOOL_OPTIONS.map(t => (
-              <button key={t.id} onClick={() => setSelectedTool(t.id)}
+              <button key={t.id} onClick={() => { setSelectedTool(t.id); setSelectedModel(DEFAULT_MODEL[t.id] ?? 'gemini-2.0-flash') }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
                   selectedTool === t.id
                     ? 'bg-white dark:bg-gray-700 text-blue-600 shadow-sm'
@@ -355,8 +364,8 @@ const Playground = () => {
                 className="bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-2 py-1.5 text-xs outline-none"
               >
                 <option value="auto">Auto</option>
-                <option value="gemini-webapi">gemini-webapi</option>
-                <option value="gemini-web-mcp-cli">gemini-web-mcp-cli</option>
+                <option value="webapi">webapi (gemini-webapi)</option>
+                <option value="mcpcli">mcpcli (gemini-web-mcp-cli)</option>
               </select>
             </label>
           )}
