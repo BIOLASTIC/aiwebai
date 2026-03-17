@@ -101,9 +101,9 @@ def create_app() -> FastAPI:
             if request.method == "OPTIONS":
                 return await call_next(request)
 
-            # Allow root of MCP and health checks
+            # Allow root of MCP, status check, and health checks
             full_path = request.url.path
-            if full_path in ["/health", "/ready", "/mcp", "/mcp/"]:
+            if full_path in ["/health", "/ready", "/mcp", "/mcp/", "/mcp/status"]:
                 return await call_next(request)
 
             auth_header = request.headers.get("Authorization")

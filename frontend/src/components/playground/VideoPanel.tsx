@@ -46,17 +46,17 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ messages, isLoading, selectedFi
               {msg.content}
               {msg.imageUrl && (
                 <>
-                  {(msg.imageUrl.split('.').pop()?.toLowerCase() || '').match(/^(mp4|webm|ogg)$/) ? (
-                    <video 
-                      src={msg.imageUrl} 
-                      controls 
+                  {/\.(mp4|webm|ogg)(\?|$)/i.test(msg.imageUrl) ? (
+                    <video
+                      src={msg.imageUrl}
+                      controls
                       className="mt-3 rounded-xl max-w-full max-h-64 object-contain"
                       onClick={() => setExpandedVideo(msg.imageUrl!)}
                     />
                   ) : (
-                    <img 
-                      src={msg.imageUrl} 
-                      alt="generated" 
+                    <img
+                      src={msg.imageUrl}
+                      alt="generated"
                       className="mt-3 rounded-xl max-w-full max-h-64 object-contain cursor-pointer"
                       onClick={() => setExpandedImage(msg.imageUrl!)}
                     />
@@ -76,16 +76,6 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ messages, isLoading, selectedFi
             )}
           </div>
         ))
-      )}
-      
-      {selectedFiles.length > 0 && (
-        <div className="flex flex-wrap gap-2 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          {selectedFiles.map((file, index) => (
-            <div key={index} className="flex items-center gap-2 bg-white dark:bg-gray-700 px-3 py-2 rounded-md shadow-sm">
-              <span className="text-sm truncate max-w-xs">{file.name}</span>
-            </div>
-          ))}
-        </div>
       )}
       
       {selectedFiles.length > 0 && (

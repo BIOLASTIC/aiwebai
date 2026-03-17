@@ -12,9 +12,9 @@ from backend.app.schemas.openai import ChatCompletionChoice, ChatCompletionReque
 
 KNOWN_WEBAPI_MODELS: List[Dict[str, Any]] = [
     {"id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro", "family": "pro", "capabilities": {"chat": True, "thinking": True}},
-    {"id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash", "family": "flash", "capabilities": {"chat": True, "streaming": True, "video": True}},
+    {"id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash", "family": "flash", "capabilities": {"chat": True, "streaming": True}},
+    {"id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash", "family": "flash", "capabilities": {"chat": True, "streaming": True, "images": True}},
     {"id": "gemini-2.0-flash-thinking-exp", "display_name": "Gemini Thinking", "family": "thinking", "capabilities": {"chat": True, "thinking": True}},
-    {"id": "imagen-3.0", "display_name": "Imagen 3.0", "family": "image", "capabilities": {"images": True, "image_edit": True}},
     {"id": "gemini-research", "display_name": "Gemini Research", "family": "research", "capabilities": {"research": True}},
 ]
 
@@ -84,7 +84,27 @@ class WebApiAdapter(BaseAdapter):
         if self.mock_mode or not self.client:
             raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
         await self.init()
-        output = await self.client.generate_content(prompt, model="gemini-3.0-flash")
+        # Map our standard model IDs → webapi internal names; mcpcli-only models use default
+        _WEBAPI_MODEL_MAP: Dict[str, str] = {
+            "gemini-2.5-pro": "gemini-3.1-pro",
+            "gemini-2.5-flash": "gemini-3.0-flash",
+            "gemini-2.0-flash": "gemini-3.0-flash",
+            "gemini-2.0-flash-thinking-exp": "gemini-3.0-flash-thinking",
+        }
+        _MCPCLI_ONLY = {"imagen-3.0", "gemini-image-latest", "veo-2.0", "veo-pro"}
+        webapi_model: Optional[str] = None
+        if request.model and request.model not in _MCPCLI_ONLY:
+            webapi_model = _WEBAPI_MODEL_MAP.get(request.model)
+        kwargs: Dict[str, Any] = {}
+        if webapi_model:
+            kwargs["model"] = webapi_model
+        # Gemini web needs an explicit image generation instruction to trigger Imagen
+        _img_triggers = ("generate", "create", "draw", "make", "render", "produce", "paint", "design")
+        if not any(w in prompt.lower() for w in _img_triggers):
+            gen_prompt = f"Generate an image of: {prompt}"
+        else:
+            gen_prompt = prompt
+        output = await self.client.generate_content(gen_prompt, **kwargs)
         images = getattr(output, "images", []) or []
         urls = []
         for image in images:
@@ -94,7 +114,17 @@ class WebApiAdapter(BaseAdapter):
                 local_url = await download_to_uploads(url)
                 urls.append({"url": local_url})
         if not urls:
-            raise Exception("Gemini returned a response but no images were found. This usually happens if the prompt was blocked by safety filters.")
+            response_text = getattr(output, "text", "") or ""
+            if "not available" in response_text.lower() or "can't" in response_text.lower() or "cannot" in response_text.lower():
+                raise Exception(
+                    "Image generation is not available for this Google account. "
+                    "You likely need a Gemini Advanced subscription. "
+                    "Alternatively, run 'gemcli login' in the terminal to enable image generation via the mcpcli account."
+                )
+            raise Exception(
+                "Gemini returned a response but no images were generated. "
+                "The prompt may have been blocked by safety filters, or image generation may not be available for this account."
+            )
         return {"created": int(time.time()), "data": urls}
 
     async def generate_video(
@@ -109,21 +139,25 @@ class WebApiAdapter(BaseAdapter):
             raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
         
         await self.init()
-        output = await self.client.generate_content(prompt, model="gemini-3.0-flash")
-        
+        output = await self.client.generate_content(prompt)
+
         videos = getattr(output, "videos", []) or []
-        local_urls = []
-        
+        local_url_strings: list[str] = []
+
         for video in videos:
             url = getattr(video, "url", None)
             if url:
                 local_url = await download_to_uploads(url)
-                local_urls.append(Path(local_url))
-                
-        if not local_urls:
+                local_url_strings.append(local_url)
+
+        if not local_url_strings:
             raise Exception("Gemini returned a response but no video results were found. Note: Video generation is experimental in the Web interface.")
-            
-        return VideoResult(video_paths=local_urls, metadata={"model": "gemini-3.0-flash"})
+
+        # Store url string in metadata to avoid Path() mangling http:// into http:/
+        return VideoResult(
+            video_paths=[Path(u) for u in local_url_strings],
+            metadata={"model": "gemini-2.0-flash", "url": local_url_strings[0]},
+        )
 
     async def list_models(self) -> List[Dict[str, Any]]:
         return KNOWN_WEBAPI_MODELS

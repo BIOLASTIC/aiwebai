@@ -1,14 +1,21 @@
 import axios from 'axios';
 
 const API_BASE = `http://${window.location.hostname}:6400`;
-const token = localStorage.getItem('token');
 
 const api = axios.create({
   baseURL: API_BASE,
   headers: {
-    Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   },
+});
+
+// Inject fresh token on every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export const modelApi = {

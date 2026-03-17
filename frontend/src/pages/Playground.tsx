@@ -28,8 +28,21 @@ interface Chat {
   messages: Message[]
   createdAt: number
 }
-interface Account { id: number; label: string; health_status: string }
-interface ModelItem { id: number; provider_model_name: string; display_name: string; family: string }
+interface AccountCapabilities {
+  chat?: boolean;
+  image?: boolean;
+  video?: boolean;
+  music?: boolean;
+  research?: boolean;
+}
+interface Account {
+  id: number;
+  label: string;
+  health_status: string;
+  provider?: string;
+  capabilities?: AccountCapabilities;
+}
+interface ModelItem { id: number; provider_model_name: string; display_name: string; family: string; source_provider?: string }
 
 const generateId = (): string => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -67,8 +80,11 @@ const Playground = () => {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('auto')
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [selectedAdapter, setSelectedAdapter] = useState<string>('auto')
 
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const selectedAccount = accounts.find(a => String(a.id) === selectedAccountId)
 
   const activeChat = chats.find(c => c.id === activeChatId) ?? null
 
@@ -185,10 +201,11 @@ const Playground = () => {
         }
         
         // Prepare request payload with reference files and account/model info
-        const requestPayload: any = { 
+        const requestPayload: any = {
           prompt: userMsg.content,
           model: selectedModel,
-          account_id: selectedAccountId !== 'auto' ? parseInt(selectedAccountId) : undefined
+          account_id: selectedAccountId !== 'auto' ? parseInt(selectedAccountId) : undefined,
+          ...(selectedAdapter !== 'auto' ? { adapter: selectedAdapter } : {}),
         };
         
         // Add reference file IDs if available for image/video tools
@@ -214,7 +231,13 @@ const Playground = () => {
     } catch (err: any) {
       const detail = err.response?.data?.detail || err.message
       toast.error(detail)
-      appendMessage(chatId, { role: 'assistant', content: `Error: ${detail}`, ts: Date.now() })
+      const isAdapterError =
+        typeof detail === 'string' &&
+        (detail.includes('not available') || detail.includes('gemcli login'))
+      const errorContent = isAdapterError
+        ? `__ADAPTER_ERROR__${detail}`
+        : `Error: ${detail}`
+      appendMessage(chatId, { role: 'assistant', content: errorContent, ts: Date.now() })
     } finally {
       setIsLoading(false)
     }
@@ -305,14 +328,37 @@ const Playground = () => {
             ))}
           </div>
 
-          <AccountSelector 
-            accounts={accounts} 
-            selectedAccountId={selectedAccountId} 
-            onSelect={setSelectedAccountId} 
+          <AccountSelector
+            accounts={accounts}
+            selectedAccountId={selectedAccountId}
+            onSelect={setSelectedAccountId}
           />
 
-          {['chat', 'image', 'video'].includes(selectedTool) && (
-            <ModelSelector feature={selectedTool} accountId={selectedAccountId} models={models} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          {['chat', 'image', 'video', 'music', 'research'].includes(selectedTool) && (
+            <ModelSelector
+              feature={selectedTool}
+              accountId={selectedAccountId}
+              accountProvider={selectedAccount?.provider}
+              accountCapabilities={selectedAccount?.capabilities}
+              models={models}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
+            />
+          )}
+
+          {selectedTool !== 'chat' && (
+            <label className="flex items-center gap-1.5 text-xs text-gray-500">
+              <span className="font-medium">Backend:</span>
+              <select
+                value={selectedAdapter}
+                onChange={(e) => setSelectedAdapter(e.target.value)}
+                className="bg-gray-100 dark:bg-gray-800 border-0 rounded-lg px-2 py-1.5 text-xs outline-none"
+              >
+                <option value="auto">Auto</option>
+                <option value="gemini-webapi">gemini-webapi</option>
+                <option value="gemini-web-mcp-cli">gemini-web-mcp-cli</option>
+              </select>
+            </label>
           )}
           
           {['image', 'video'].includes(selectedTool) && (

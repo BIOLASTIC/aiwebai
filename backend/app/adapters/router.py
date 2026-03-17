@@ -16,20 +16,81 @@ from backend.app.models.registry import model_registry
 from backend.app.schemas.native import ImageGenerationRequest
 from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse
 
+# Map provider string → adapter class
+_ADAPTER_TYPE_MAP: Dict[str, type] = {
+    "webapi": WebApiAdapter,
+    "mcpcli": McpCliAdapter,
+}
+
+# Human-readable names for error messages
+_ADAPTER_DISPLAY_NAMES: Dict[type, str] = {
+    WebApiAdapter: "webapi",
+    McpCliAdapter: "mcpcli",
+}
+
+# Capabilities not supported by each adapter type
+_ADAPTER_MISSING_CAPS: Dict[type, Dict[str, str]] = {
+    WebApiAdapter: {
+        "video": "Video generation is not supported by the gemini-webapi adapter.",
+        "music": "Music generation is not supported by the gemini-webapi adapter.",
+        "research": "Deep research is not supported by the gemini-webapi adapter.",
+    },
+    McpCliAdapter: {},
+}
+
+
+def _resolve_forced_adapter(adapter_param: str | None, all_adapters: List[BaseAdapter]) -> BaseAdapter | None:
+    """Return a specific adapter instance based on the forced adapter name, or None if not applicable."""
+    if adapter_param is None:
+        return None
+    cls = _ADAPTER_TYPE_MAP.get(adapter_param.lower())
+    if cls is None:
+        raise HTTPException(status_code=400, detail=f"Unknown adapter '{adapter_param}'. Valid values: webapi, mcpcli.")
+    for a in all_adapters:
+        if isinstance(a, cls):
+            return a
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"Adapter '{adapter_param}' is not available. "
+            "No active account of that type is configured."
+        ),
+    )
+
+
+def _assert_capability(adapter: BaseAdapter, capability: str) -> None:
+    """Raise HTTPException if the adapter does not support the requested capability."""
+    missing = _ADAPTER_MISSING_CAPS.get(type(adapter), {})
+    reason = missing.get(capability)
+    if reason:
+        name = _ADAPTER_DISPLAY_NAMES.get(type(adapter), str(type(adapter)))
+        raise HTTPException(
+            status_code=422,
+            detail=f"Adapter '{name}' cannot handle '{capability}': {reason}",
+        )
+
 
 class AdapterRouter:
     def __init__(self) -> None:
         self.mock_adapter = WebApiAdapter(mock_mode=True)
 
-    def get_best_adapter(self, capability: str) -> BaseAdapter:
+    def get_best_adapter(self, capability: str, model_alias: str | None = None) -> BaseAdapter:
         adapters = account_manager.get_all_adapters()
         if not adapters:
             return self.mock_adapter
+
+        # Priority 1: If model is imagen or veo, prefer McpCliAdapter
+        if model_alias and ("imagen" in model_alias.lower() or "veo" in model_alias.lower()):
+            for adapter in adapters:
+                if isinstance(adapter, McpCliAdapter):
+                    return adapter
+
         if capability == "chat":
             for adapter in adapters:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
         if capability in {"image", "image_edit"}:
+            # For images, we usually want the WebApiAdapter if available (high quality)
             for adapter in adapters:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
@@ -46,43 +107,119 @@ class AdapterRouter:
         await model_registry.discover_models()
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
-        adapter = self.get_best_adapter("chat")
+        adapter = self.get_best_adapter("chat", request.model)
         return await adapter.chat_completion(request)
 
     async def stream_chat(self, request: ChatCompletionRequest) -> AsyncGenerator[Dict[str, Any], None]:
-        adapter = self.get_best_adapter("chat")
+        adapter = self.get_best_adapter("chat", request.model)
         async for chunk in adapter.stream_chat(request):
             yield chunk
 
-    async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
+    async def generate_image(self, request: ImageGenerationRequest, adapter: str | None = None) -> Dict[str, Any]:
+        all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
+
+        # Forced adapter path
+        if adapter is not None:
+            forced = _resolve_forced_adapter(adapter, all_adapters)
+            _assert_capability(forced, "image")
+            return await forced.generate_image(request)
+
         if request.account_id:
-            adapter = account_manager.get_adapter_for_account(request.account_id)
-            if adapter:
-                return await adapter.generate_image(request)
-        
-        last_error = None
-        for adapter in [a for a in account_manager.get_all_adapters()] or [self.mock_adapter]:
+            acct_adapter = account_manager.get_adapter_for_account(request.account_id)
+            if acct_adapter:
+                return await acct_adapter.generate_image(request)
+
+        # Route by model first (imagen -> McpCliAdapter, others -> WebApiAdapter)
+        preferred_adapter = self.get_best_adapter("image", request.model)
+        ordered = [preferred_adapter] + [a for a in all_adapters if a is not preferred_adapter]
+
+        errors: Dict[str, str] = {}
+        for adpt in ordered:
             try:
-                result = await adapter.generate_image(request)
+                result = await adpt.generate_image(request)
                 if result.get("data"):
                     return result
             except Exception as exc:
-                last_error = exc
-        if last_error:
-            raise last_error
-        return {"created": int(time.time()), "data": []}
+                name = _ADAPTER_DISPLAY_NAMES.get(type(adpt), str(type(adpt)))
+                errors[name] = str(exc)
 
-    async def generate_video(self, prompt: str, model: str | None, account_id: int | None, reference_files: list[Path] | None, options: dict | None):
-        adapter = self.get_best_adapter("video")
-        return await adapter.generate_video(prompt, model, account_id, reference_files, options)
+        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
+        raise HTTPException(
+            status_code=502,
+            detail=f"No adapter could generate image. {tried}",
+        )
 
-    async def generate_music(self, prompt: str) -> str:
-        adapter = self.get_best_adapter("music")
-        return await adapter.generate_music(prompt)
+    async def generate_video(self, prompt: str, model: str | None, account_id: int | None, reference_files: list[Path] | None, options: dict | None, adapter: str | None = None):
+        all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
 
-    async def generate_research(self, prompt: str) -> str:
-        adapter = self.get_best_adapter("research")
-        return await adapter.deep_research(prompt)
+        if adapter is not None:
+            forced = _resolve_forced_adapter(adapter, all_adapters)
+            _assert_capability(forced, "video")
+            return await forced.generate_video(prompt, model, account_id, reference_files, options)
+
+        if account_id:
+            acct_adapter = account_manager.get_adapter_for_account(account_id)
+            if acct_adapter:
+                return await acct_adapter.generate_video(prompt, model, account_id, reference_files, options)
+
+        best = self.get_best_adapter("video", model)
+        errors: Dict[str, str] = {}
+        for adpt in [best] + [a for a in all_adapters if a is not best]:
+            try:
+                return await adpt.generate_video(prompt, model, account_id, reference_files, options)
+            except Exception as exc:
+                name = _ADAPTER_DISPLAY_NAMES.get(type(adpt), str(type(adpt)))
+                errors[name] = str(exc)
+        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
+        raise HTTPException(status_code=502, detail=f"No adapter could generate video. {tried}")
+
+    async def generate_music(self, prompt: str, account_id: int | None = None, adapter: str | None = None) -> str:
+        all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
+
+        if adapter is not None:
+            forced = _resolve_forced_adapter(adapter, all_adapters)
+            _assert_capability(forced, "music")
+            return await forced.generate_music(prompt)
+
+        if account_id:
+            acct_adapter = account_manager.get_adapter_for_account(account_id)
+            if acct_adapter:
+                return await acct_adapter.generate_music(prompt)
+
+        best = self.get_best_adapter("music")
+        errors: Dict[str, str] = {}
+        for adpt in [best] + [a for a in all_adapters if a is not best]:
+            try:
+                return await adpt.generate_music(prompt)
+            except Exception as exc:
+                name = _ADAPTER_DISPLAY_NAMES.get(type(adpt), str(type(adpt)))
+                errors[name] = str(exc)
+        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
+        raise HTTPException(status_code=502, detail=f"No adapter could generate music. {tried}")
+
+    async def generate_research(self, prompt: str, account_id: int | None = None, adapter: str | None = None) -> str:
+        all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
+
+        if adapter is not None:
+            forced = _resolve_forced_adapter(adapter, all_adapters)
+            _assert_capability(forced, "research")
+            return await forced.deep_research(prompt)
+
+        if account_id:
+            acct_adapter = account_manager.get_adapter_for_account(account_id)
+            if acct_adapter:
+                return await acct_adapter.deep_research(prompt)
+
+        best = self.get_best_adapter("research")
+        errors: Dict[str, str] = {}
+        for adpt in [best] + [a for a in all_adapters if a is not best]:
+            try:
+                return await adpt.deep_research(prompt)
+            except Exception as exc:
+                name = _ADAPTER_DISPLAY_NAMES.get(type(adpt), str(type(adpt)))
+                errors[name] = str(exc)
+        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
+        raise HTTPException(status_code=502, detail=f"No adapter could generate research. {tried}")
 
 
 adapter_router = AdapterRouter()

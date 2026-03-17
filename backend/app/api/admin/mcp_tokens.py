@@ -14,17 +14,34 @@ router = APIRouter(prefix="/admin/mcp/tokens", tags=["admin-mcp-tokens"])
 async def list_mcp_tokens(db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)):
     result = await db.execute(select(ConsumerApiKey).where(ConsumerApiKey.scopes.contains(["mcp"])))
     keys = result.scalars().all()
-    return [{"id": k.id, "label": k.label, "status": k.status, "created_at": k.created_at} for k in keys]
+    return [
+        {
+            "id": k.id,
+            "label": k.label,
+            "status": k.status,
+            "created_at": k.created_at,
+            "key_prefix": k.key_prefix or "",
+        }
+        for k in keys
+    ]
 
 
 @router.post("/")
 async def create_mcp_token(label: str, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)):
     raw_key = generate_api_key()
-    api_key = ConsumerApiKey(user_id=admin.id, key_hash=hash_key(raw_key), label=label, status="active", scopes=["mcp"])
+    key_prefix = raw_key[:16]
+    api_key = ConsumerApiKey(
+        user_id=admin.id,
+        key_hash=hash_key(raw_key),
+        key_prefix=key_prefix,
+        label=label,
+        status="active",
+        scopes=["mcp"],
+    )
     db.add(api_key)
     await db.commit()
     await db.refresh(api_key)
-    return {"id": api_key.id, "token": raw_key, "label": label}
+    return {"id": api_key.id, "token": raw_key, "label": label, "key_prefix": key_prefix}
 
 
 @router.delete("/{token_id}")

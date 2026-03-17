@@ -119,6 +119,7 @@ class ConsumerApiKey(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     key_hash = Column(String, unique=True, index=True, nullable=False)
+    key_prefix = Column(String(20), nullable=True)
     label = Column(String)
     scopes = Column(JSON, default=list)
     rate_limit = Column(Integer, nullable=True)

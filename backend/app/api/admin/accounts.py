@@ -65,6 +65,25 @@ async def list_accounts(db: AsyncSession = Depends(get_db), admin: User = Depend
     return (await db.execute(select(Account).options(selectinload(Account.auth_methods)))).scalars().all()
 
 
+@router.get("/capabilities")
+async def list_account_capabilities(db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)):
+    from backend.app.schemas.accounts import PROVIDER_ADAPTER_TYPE, PROVIDER_CAPABILITIES, AccountCapabilities
+    accounts = (await db.execute(select(Account).options(selectinload(Account.auth_methods)))).scalars().all()
+    result = []
+    for account in accounts:
+        provider = account.provider or ""
+        caps = PROVIDER_CAPABILITIES.get(provider, {})
+        result.append({
+            "id": account.id,
+            "label": account.label,
+            "provider": provider,
+            "adapter_type": PROVIDER_ADAPTER_TYPE.get(provider, provider),
+            "capabilities": AccountCapabilities(**caps).model_dump(),
+            "health_status": account.health_status,
+        })
+    return result
+
+
 @router.post("/", response_model=AccountResponse)
 async def create_account(account_in: AccountCreate, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)):
     account = Account(label=account_in.label, provider=account_in.provider, owner_user_id=account_in.owner_user_id or admin.id, region_hint=account_in.region_hint, language_hint=account_in.language_hint, chrome_required=account_in.chrome_required, status=account_in.status, health_status="unknown")

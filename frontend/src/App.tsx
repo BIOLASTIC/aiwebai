@@ -28,8 +28,8 @@ function AxiosInterceptor() {
       (res) => res,
       (error) => {
         const url: string = error.config?.url ?? ''
-        // Only log out for admin JWT routes, not API/native routes that use API keys
-        if (error.response?.status === 401 && !url.includes('/v1/') && !url.includes('/native/')) {
+        // Only log out for admin JWT routes, not API/native/mcp routes that use separate auth
+        if (error.response?.status === 401 && !url.includes('/v1/') && !url.includes('/native/') && !url.includes('/mcp/')) {
           localStorage.removeItem('token')
           navigate('/login', { replace: true })
         }

@@ -1,5 +1,5 @@
 import asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from backend.app.auth.api_key_auth import hash_key
 from backend.app.auth.password import get_password_hash
@@ -8,8 +8,21 @@ from backend.app.db.engine import AsyncSessionLocal
 from backend.app.db.models import ConsumerApiKey, User
 
 
+async def _migrate_consumer_api_keys(session) -> None:
+    """Add key_prefix column to consumer_api_keys if it doesn't exist (SQLite migration)."""
+    try:
+        result = await session.execute(text("PRAGMA table_info(consumer_api_keys)"))
+        columns = {row[1] for row in result.fetchall()}
+        if "key_prefix" not in columns:
+            await session.execute(text("ALTER TABLE consumer_api_keys ADD COLUMN key_prefix VARCHAR(20)"))
+            await session.commit()
+    except Exception:
+        pass
+
+
 async def seed_defaults() -> None:
     async with AsyncSessionLocal() as session:
+        await _migrate_consumer_api_keys(session)
         users = [
             (settings.DEFAULT_ADMIN_EMAIL, settings.DEFAULT_ADMIN_PASSWORD),
             (settings.DEFAULT_COMPAT_ADMIN_EMAIL, settings.DEFAULT_ADMIN_PASSWORD),
