@@ -45,7 +45,7 @@ interface Account {
   provider?: string;
   capabilities?: AccountCapabilities;
 }
-interface ModelItem { id: number; provider_model_name: string; display_name: string; family: string; source_provider?: string }
+interface ModelItem { id: number; provider_model_name: string; display_name: string; family: string; source_provider?: string; capabilities?: Record<string, boolean> }
 
 const generateId = (): string => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
@@ -205,30 +205,22 @@ const Playground = () => {
           adapter: meta.adapter
         })
       } else {
-        // If we have files to upload, upload them first and get file IDs
+        // Upload reference files one-by-one (backend handles one file per request)
         let uploadedFileIds: string[] = [];
         if (['image', 'video'].includes(selectedTool) && selectedFiles.length > 0) {
-          const formData = new FormData();
-          // Create a temporary formdata to upload files
-          selectedFiles.forEach((file, index) => {
-            formData.append(`file`, file, file.name);
-          });
-          
-          try {
-            // Upload the files to the server
-            const uploadResponse = await axios.post(`${API_BASE}/v1/files`, formData, { 
-              headers: { ...headers, 'Content-Type': 'multipart/form-data' } 
-            });
-            
-            // Extract file IDs from response (assuming each file upload returns an ID)
-            // The API returns a list of file objects
-            if (Array.isArray(uploadResponse.data)) {
-              uploadedFileIds = uploadResponse.data.map((file: any) => file.id);
-            } else if (uploadResponse.data && uploadResponse.data.id) {
-              uploadedFileIds = [uploadResponse.data.id]; // single file
+          for (const file of selectedFiles) {
+            try {
+              const formData = new FormData();
+              formData.append('file', file, file.name);
+              const uploadResponse = await axios.post(`${API_BASE}/v1/files`, formData, {
+                headers: { ...headers, 'Content-Type': 'multipart/form-data' },
+              });
+              if (uploadResponse.data?.id) {
+                uploadedFileIds.push(uploadResponse.data.id);
+              }
+            } catch (uploadError) {
+              console.error('File upload failed:', uploadError);
             }
-          } catch (uploadError) {
-            console.error('File upload failed:', uploadError);
           }
         }
         

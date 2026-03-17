@@ -222,7 +222,6 @@ class WebApiAdapter(BaseAdapter):
         await self.init()
 
         prompt = request.prompt.strip()
-        model_enum = self._resolve_model(request.model)
 
         # Gemini needs explicit trigger words to invoke ImageFX (Imagen)
         if not any(w in prompt.lower() for w in _IMG_TRIGGERS):
@@ -230,11 +229,23 @@ class WebApiAdapter(BaseAdapter):
         else:
             gen_prompt = prompt
 
+        # For image generation always use UNSPECIFIED so Gemini can route to ImageFX/Imagen.
+        # Passing a specific text model (e.g. G_3_1_PRO) prevents image generation.
         kwargs: Dict[str, Any] = {}
-        if model_enum is not None:
-            kwargs["model"] = model_enum
+        if GeminiModel is not None:
+            kwargs["model"] = GeminiModel.UNSPECIFIED
 
-        output = await self.client.generate_content(gen_prompt, **kwargs)
+        import asyncio
+        try:
+            output = await asyncio.wait_for(
+                self.client.generate_content(gen_prompt, **kwargs),
+                timeout=90,
+            )
+        except asyncio.TimeoutError:
+            raise Exception(
+                "Gemini image generation timed out (90s). "
+                "Try again or switch to the mcpcli backend."
+            )
         images = getattr(output, "images", []) or []
 
         urls = []
@@ -258,7 +269,14 @@ class WebApiAdapter(BaseAdapter):
         if not urls:
             response_text = getattr(output, "text", "") or ""
             rlt = response_text.lower()
-            if any(w in rlt for w in ("not available", "can't generate", "cannot generate", "subscription", "upgrade", "advanced", "premium")):
+            if any(w in rlt for w in (
+                "not available", "can't generate", "cannot generate",
+                "subscription", "upgrade", "advanced", "premium",
+                "gemini advanced", "i'm not able to generate", "i am not able to generate",
+                "i can't create", "i cannot create", "unable to generate", "unable to create",
+                "don't have the ability", "do not have the ability",
+                "not designed to generate images", "can't directly generate",
+            )):
                 raise Exception(
                     "Image generation is not available for this Google account. "
                     "You likely need a Gemini Advanced subscription. "
@@ -269,9 +287,9 @@ class WebApiAdapter(BaseAdapter):
                     "Gemini session expired. Please re-import fresh browser cookies for this account in Admin → Accounts."
                 )
             raise Exception(
-                "Gemini returned a response but no images were found. "
-                "This usually happens if the prompt was blocked by safety filters. "
-                "Try a different prompt or switch to the mcpcli backend."
+                "Image generation is not available for this Google account. "
+                "You likely need a Gemini Advanced subscription to use image generation via the web API. "
+                "The system will automatically retry with the mcpcli backend if one is configured."
             )
 
         return {"created": int(time.time()), "data": urls}
@@ -285,19 +303,30 @@ class WebApiAdapter(BaseAdapter):
         await self.init()
 
         prompt = request.prompt.strip()
-        model_enum = self._resolve_model(request.model)
 
+        # Use UNSPECIFIED model so Gemini can route to ImageFX/Imagen for image editing
         kwargs: Dict[str, Any] = {}
-        if model_enum is not None:
-            kwargs["model"] = model_enum
+        if GeminiModel is not None:
+            kwargs["model"] = GeminiModel.UNSPECIFIED
 
         files: list[Any] | None = None
         if reference_file:
             import io
             files = [io.BytesIO(reference_file)]
 
-        edit_prompt = prompt if any(w in prompt.lower() for w in ("edit", "change", "modify", "remove", "replace", "add", "adjust")) else f"Edit this image: {prompt}"
-        output = await self.client.generate_content(edit_prompt, files=files, **kwargs)
+        _EDIT_WORDS = ("edit", "change", "modify", "remove", "replace", "add", "adjust",
+                       "make", "turn", "convert", "apply", "color", "black", "white", "blur", "crop")
+        edit_prompt = prompt if any(w in prompt.lower() for w in _EDIT_WORDS) else f"Edit this image: {prompt}"
+        try:
+            output = await self.client.generate_content(edit_prompt, files=files, **kwargs)
+        except Exception as exc:
+            err = str(exc).lower()
+            if any(w in err for w in ("timeout", "timed out", "time out")):
+                raise Exception(
+                    "Image editing timed out. "
+                    "Gemini was still processing — try again (it usually succeeds on a retry)."
+                ) from exc
+            raise
         images = getattr(output, "images", []) or []
 
         urls = []

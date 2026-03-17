@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import List, Optional
 
 import browser_cookie3
@@ -15,6 +17,15 @@ from backend.app.schemas.accounts import AccountCreate, AccountResponse
 from backend.app.utils.encryption import encrypt
 
 router = APIRouter(prefix="/admin/accounts", tags=["admin-accounts"])
+
+
+def _read_gemcli_auth(profile: str = "default") -> dict:
+    """Read gemcli auth.json for the given profile. Returns parsed dict or raises."""
+    auth_path = Path.home() / ".gemini-web-mcp-cli" / "profiles" / profile / "auth.json"
+    if not auth_path.exists():
+        raise FileNotFoundError(f"gemcli profile '{profile}' not found. Run 'gemcli login' first.")
+    with open(auth_path) as f:
+        return json.load(f)
 
 
 @router.post("/import/browser")
@@ -41,6 +52,58 @@ async def import_from_browser(browser: str = "chrome", db: AsyncSession = Depend
     await db.commit()
     await account_manager.refresh_accounts()
     return {"status": "success", "account_id": account.id}
+
+
+@router.get("/gemcli-status")
+async def gemcli_status(admin: User = Depends(get_current_admin)):
+    """Check if gemcli is logged in and return email if available."""
+    try:
+        auth = _read_gemcli_auth()
+        email = auth.get("email")
+        cookies = auth.get("cookies", {})
+        has_session = bool(cookies.get("__Secure-1PSID") or cookies.get("SID"))
+        return {"logged_in": has_session, "email": email, "profile": "default"}
+    except FileNotFoundError:
+        return {"logged_in": False, "email": None, "profile": "default"}
+    except Exception as exc:
+        return {"logged_in": False, "email": None, "error": str(exc)}
+
+
+@router.post("/import/gemcli")
+async def import_from_gemcli(profile: str = "default", db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Import the gemcli default profile as an mcpcli account."""
+    try:
+        auth = _read_gemcli_auth(profile)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    email = auth.get("email")
+    cookies = auth.get("cookies", {})
+    secure_1psid = cookies.get("__Secure-1PSID") or cookies.get("SID")
+    if not secure_1psid:
+        raise HTTPException(status_code=400, detail="gemcli auth has no valid session cookie. Run 'gemcli login' again.")
+
+    label = email or f"gemcli-{profile}"
+
+    # Upsert: if an mcpcli account with this email already exists, update its credentials
+    existing = (await db.execute(select(Account).where(Account.provider == "mcpcli", Account.email == email))).scalar_one_or_none() if email else None
+    if existing:
+        account = existing
+    else:
+        account = Account(label=label, email=email, provider="mcpcli", owner_user_id=admin.id, status="active", health_status="unknown")
+        db.add(account)
+        await db.flush()
+
+    # Store the profile name as credentials (mcpcli adapter uses profile)
+    existing_auth = (await db.execute(select(AccountAuthMethod).where(AccountAuthMethod.account_id == account.id, AccountAuthMethod.auth_type == "profile"))).scalar_one_or_none()
+    if existing_auth:
+        existing_auth.encrypted_credentials = encrypt(profile)
+    else:
+        db.add(AccountAuthMethod(account_id=account.id, auth_type="profile", encrypted_credentials=encrypt(profile)))
+
+    await db.commit()
+    await account_manager.refresh_accounts()
+    return {"status": "success", "account_id": account.id, "email": email, "label": label}
 
 
 @router.post("/{account_id}/validate")
@@ -86,7 +149,7 @@ async def list_account_capabilities(db: AsyncSession = Depends(get_db), admin: U
 
 @router.post("/", response_model=AccountResponse)
 async def create_account(account_in: AccountCreate, db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)):
-    account = Account(label=account_in.label, provider=account_in.provider, owner_user_id=account_in.owner_user_id or admin.id, region_hint=account_in.region_hint, language_hint=account_in.language_hint, chrome_required=account_in.chrome_required, status=account_in.status, health_status="unknown")
+    account = Account(label=account_in.label, email=account_in.email, provider=account_in.provider, owner_user_id=account_in.owner_user_id or admin.id, region_hint=account_in.region_hint, language_hint=account_in.language_hint, chrome_required=account_in.chrome_required, status=account_in.status, health_status="unknown")
     db.add(account)
     await db.flush()
     for auth_method in account_in.auth_methods:

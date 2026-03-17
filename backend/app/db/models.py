@@ -26,6 +26,7 @@ class Account(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     label = Column(String, nullable=False)
+    email = Column(String, nullable=True)
     owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     provider = Column(String, nullable=False)
     status = Column(String, default="active")

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Trash2, Download, Loader2, CheckCircle2, AlertCircle, Key, Globe, LayoutGrid, List as ListIcon, X, Pencil, Check } from 'lucide-react'
+import { Plus, Trash2, Download, Loader2, CheckCircle2, AlertCircle, Key, Globe, LayoutGrid, List as ListIcon, X, Pencil, Check, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import axios from 'axios'
 
@@ -10,6 +10,8 @@ const Accounts = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isAdding, setIsAdding] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [isSyncingGemcli, setIsSyncingGemcli] = useState(false)
+  const [gemcliStatus, setGemcliStatus] = useState<{ logged_in: boolean; email: string | null } | null>(null)
   const [newAccount, setNewAccount] = useState({ label: '', provider: 'webapi', credentials: '' })
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
   // inline rename state: { [id]: editingLabel }
@@ -30,7 +32,28 @@ const Accounts = () => {
     }
   }
 
-  useEffect(() => { fetchAccounts() }, [])
+  const fetchGemcliStatus = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/admin/accounts/gemcli-status`, { headers })
+      setGemcliStatus(res.data)
+    } catch { /* silent */ }
+  }
+
+  const handleSyncGemcli = async () => {
+    setIsSyncingGemcli(true)
+    try {
+      const res = await axios.post(`${API_BASE}/admin/accounts/import/gemcli`, {}, { headers })
+      toast.success(`Synced gemcli account: ${res.data.email || res.data.label}`)
+      fetchAccounts()
+      fetchGemcliStatus()
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to sync gemcli account')
+    } finally {
+      setIsSyncingGemcli(false)
+    }
+  }
+
+  useEffect(() => { fetchAccounts(); fetchGemcliStatus() }, [])
 
   const handleAddAccount = async () => {
     if (!newAccount.label || !newAccount.credentials) {
@@ -138,6 +161,15 @@ const Accounts = () => {
             <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md ${viewMode === 'grid' ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}><LayoutGrid size={18} /></button>
           </div>
 
+          {gemcliStatus?.logged_in && (
+            <button onClick={handleSyncGemcli} disabled={isSyncingGemcli}
+              title={`Sync gemcli account: ${gemcliStatus.email}`}
+              className="bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 px-4 py-2.5 rounded-xl flex items-center space-x-2 hover:bg-green-100 transition disabled:opacity-50 font-medium text-sm">
+              {isSyncingGemcli ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+              <span>Sync gemcli</span>
+            </button>
+          )}
+
           <button onClick={() => handleImportBrowser('chrome')} disabled={isImporting}
             title="Only works when the backend runs on the same machine as your Chrome browser"
             className="bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20 px-4 py-2.5 rounded-xl flex items-center space-x-2 hover:bg-orange-100 transition disabled:opacity-50 font-medium text-sm">
@@ -186,6 +218,20 @@ const Accounts = () => {
         </div>
       )}
 
+      {gemcliStatus?.logged_in && !accounts.some(a => a.provider === 'mcpcli' && a.email === gemcliStatus.email) && (
+        <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700/40 rounded-2xl px-5 py-3.5">
+          <div>
+            <p className="font-medium text-green-800 dark:text-green-300 text-sm">gemcli logged in as <span className="font-bold">{gemcliStatus.email}</span></p>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Click "Sync gemcli" to add this account to the gateway.</p>
+          </div>
+          <button onClick={handleSyncGemcli} disabled={isSyncingGemcli}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 disabled:opacity-50">
+            {isSyncingGemcli ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+            Sync Now
+          </button>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-12 flex justify-center">
           <Loader2 className="animate-spin text-blue-600 dark:text-blue-400" size={48} />
@@ -222,9 +268,12 @@ const Accounts = () => {
                             <button onClick={() => cancelRename(a.id)} className="text-gray-400 hover:text-gray-600"><X size={15} /></button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2 group/label">
-                            <span>{a.label}</span>
-                            <button onClick={() => startRename(a.id, a.label)} className="opacity-0 group-hover/label:opacity-100 text-gray-400 hover:text-blue-500 transition-opacity"><Pencil size={13} /></button>
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2 group/label">
+                              <span>{a.label}</span>
+                              <button onClick={() => startRename(a.id, a.label)} className="opacity-0 group-hover/label:opacity-100 text-gray-400 hover:text-blue-500 transition-opacity"><Pencil size={13} /></button>
+                            </div>
+                            {a.email && <span className="text-xs text-gray-400 dark:text-gray-500">{a.email}</span>}
                           </div>
                         )}
                       </div>
@@ -282,6 +331,7 @@ const Accounts = () => {
                     <h3 className="font-bold text-lg text-gray-900 dark:text-white leading-tight truncate">{a.label}</h3>
                   )}
                   <p className="text-sm text-gray-500 capitalize">{a.provider}</p>
+                  {a.email && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{a.email}</p>}
                 </div>
               </div>
 

@@ -197,6 +197,16 @@ class McpCliAdapter(BaseAdapter):
         url = await self._move_to_uploads(tmp_path)
         return {"created": int(time.time()), "data": [{"url": url}]}
 
+    async def edit_image(self, request: ImageGenerationRequest, reference_file: bytes | None = None) -> Dict[str, Any]:
+        """gemcli image does not support reference/edit — raise so the router falls back to webapi."""
+        if reference_file:
+            raise Exception(
+                "gemcli does not support image editing with a reference file. "
+                "Falling back to webapi adapter for image editing."
+            )
+        # No reference file: just generate normally
+        return await self.generate_image(request)
+
     async def list_models(self) -> List[Dict[str, Any]]:
         """Return models available via gemini-web-mcp-cli."""
         return [

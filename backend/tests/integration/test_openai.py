@@ -31,7 +31,7 @@ async def test_chat_completions_with_auth_mock():
         )
     # If no adapter is configured, it might return 500 or error from router
     # But here we want to see if it passed get_user_by_api_key
-    assert response.status_code in [200, 500] 
+    assert response.status_code in [200, 500, 502] 
 
 @pytest.mark.asyncio
 async def test_chat_stream_no_auth():

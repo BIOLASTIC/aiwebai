@@ -16,6 +16,7 @@ interface ModelItem {
   display_name: string;
   family: string;
   source_provider?: string;
+  capabilities?: Record<string, boolean>;
 }
 
 interface ModelSelectorProps {
@@ -95,13 +96,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
           // fallback: filter from provided models list by feature capability
           const fallback = models.filter((m) => {
             if (feature === 'image') {
-              // imagen-3.0 (mcpcli), gemini-3.0-flash and gemini-3.0-pro (webapi) support images
-              return (
-                m.provider_model_name.includes('imagen') ||
-                m.provider_model_name === 'gemini-3.0-flash' ||
-                m.provider_model_name === 'gemini-3.0-pro' ||
-                (m.provider_model_name.includes('flash') && !m.provider_model_name.includes('thinking'))
-              );
+              const caps = m.capabilities || {};
+              return caps.images === true;
             }
             if (feature === 'video') {
               return (

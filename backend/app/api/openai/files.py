@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.auth.api_key_auth import get_user_by_api_key
+from backend.app.auth.api_key_auth import get_user_by_key_or_jwt
 from backend.app.config import BASE_DIR
 from backend.app.db.engine import get_db
 from backend.app.db.models import UploadedFile, User
@@ -25,7 +25,7 @@ class FileResponse(BaseModel):
 
 
 @router.post("/v1/files", response_model=FileResponse)
-async def upload_file(file: UploadFile = File(...), purpose: str = "assistants", user: User = Depends(get_user_by_api_key), db: AsyncSession = Depends(get_db)):
+async def upload_file(file: UploadFile = File(...), purpose: str = "assistants", user: User = Depends(get_user_by_key_or_jwt), db: AsyncSession = Depends(get_db)):
     storage = FileStorage(base_dir=BASE_DIR / "uploads")
     content = await file.read()
     file_id = storage.save_bytes(content, file.filename, file.content_type or "application/octet-stream")
@@ -45,7 +45,7 @@ async def upload_file(file: UploadFile = File(...), purpose: str = "assistants",
 
 
 @router.get("/v1/files", response_model=Dict[str, Any])
-async def list_files(user: User = Depends(get_user_by_api_key), db: AsyncSession = Depends(get_db)):
+async def list_files(user: User = Depends(get_user_by_key_or_jwt), db: AsyncSession = Depends(get_db)):
     files = (await db.execute(select(UploadedFile).filter(UploadedFile.owner_user_id == user.id))).scalars().all()
     return {
         "object": "list",

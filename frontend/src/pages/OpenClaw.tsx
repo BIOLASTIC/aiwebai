@@ -73,7 +73,7 @@ const OpenClawPage = () => {
           provider: a.provider,
           adapter_type: a.provider,
           health: a.health_status || 'unknown',
-          capabilities: a.provider === 'mcpcli' ? ['chat', 'image', 'video', 'music', 'research'] : ['chat', 'image'],
+          capabilities: a.provider === 'mcpcli' ? ['chat', 'image', 'video', 'music', 'research'] : ['chat'],
           active: a.status === 'active',
         }))
         setAccounts(acctList)
@@ -86,15 +86,15 @@ const OpenClawPage = () => {
           total_accounts: acctList.length,
           active_accounts: acctList.filter(a => a.active).length,
           webapi_accounts: webapi.map(a => ({ id: a.id, label: a.label, active: a.active, health: a.health })),
-          webapi_capabilities: ['chat', 'image'],
+          webapi_capabilities: ['chat'],
           mcpcli_accounts: mcpcli.map(a => ({ id: a.id, label: a.label, active: a.active, health: a.health })),
           mcpcli_capabilities: ['chat', 'image', 'video', 'music', 'research'],
           capability_notes: {
-            chat: 'Available via webapi or mcpcli',
-            image: 'Available via webapi or mcpcli (mcpcli required for imagen-3.0/veo models)',
-            video: 'mcpcli only — webapi does not support video generation',
-            music: 'mcpcli only — webapi does not support music generation',
-            research: 'mcpcli only — webapi does not support deep research',
+            chat: 'webapi (gemini-3.0-pro/flash/thinking) or mcpcli — webapi preferred for streaming',
+            image: 'mcpcli (Imagen 3, recommended) — run "gemcli login" to enable',
+            video: 'mcpcli only (Veo 2.0) — run "gemcli login" to enable',
+            music: 'mcpcli only (Lyria 1.0) — run "gemcli login" to enable',
+            research: 'mcpcli only — run "gemcli login" to enable',
           },
         })
       }
@@ -280,13 +280,14 @@ const OpenClawPage = () => {
 
           <div className="space-y-4">
             <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">1. Local Directory Install</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">1. Download the plugin</h4>
+              <p className="text-xs text-gray-500">Use the Download buttons above to get the plugin archive, then extract it.</p>
               <div className="relative">
                 <pre className="p-3 bg-gray-900 text-gray-300 rounded-lg font-mono text-xs overflow-x-auto">
-                  {`openclaw plugins add ./path/to/extracted/plugin`}
+                  {`curl -o plugin.zip http://${window.location.hostname}:6400/plugins/openclaw/plugin.zip\nunzip plugin.zip -d gemini-gateway-plugin`}
                 </pre>
                 <button
-                  onClick={() => copyToClipboard(`openclaw plugins add ./path/to/extracted/plugin`)}
+                  onClick={() => copyToClipboard(`curl -o plugin.zip http://${window.location.hostname}:6400/plugins/openclaw/plugin.zip\nunzip plugin.zip -d gemini-gateway-plugin`)}
                   className="absolute top-2 right-2 p-1.5 bg-gray-800 text-white rounded transition"
                 >
                   <Copy size={12} />
@@ -295,13 +296,13 @@ const OpenClawPage = () => {
             </div>
 
             <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">2. Package Install (.tgz)</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">2. Install the plugin</h4>
               <div className="relative">
                 <pre className="p-3 bg-gray-900 text-gray-300 rounded-lg font-mono text-xs overflow-x-auto">
-                  {`openclaw plugins add ./gemini-gateway-plugin.tgz`}
+                  {`openclaw plugins add ./gemini-gateway-plugin`}
                 </pre>
                 <button
-                  onClick={() => copyToClipboard(`openclaw plugins add ./gemini-gateway-plugin.tgz`)}
+                  onClick={() => copyToClipboard(`openclaw plugins add ./gemini-gateway-plugin`)}
                   className="absolute top-2 right-2 p-1.5 bg-gray-800 text-white rounded transition"
                 >
                   <Copy size={12} />
@@ -310,7 +311,39 @@ const OpenClawPage = () => {
             </div>
 
             <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">3. Verify Installation</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">3. Connect MCP server</h4>
+              <p className="text-xs text-gray-500">Add the gateway as an MCP server in your client config:</p>
+              <div className="relative">
+                <pre className="p-3 bg-gray-900 text-gray-300 rounded-lg font-mono text-xs overflow-x-auto">
+                  {`# Claude Code\nclaude mcp add gemini-gateway --url http://${window.location.hostname}:6400/mcp/\n\n# claude_desktop_config.json\n{\n  "mcpServers": {\n    "gemini-gateway": {\n      "url": "http://${window.location.hostname}:6400/mcp/"\n    }\n  }\n}`}
+                </pre>
+                <button
+                  onClick={() => copyToClipboard(`claude mcp add gemini-gateway --url http://${window.location.hostname}:6400/mcp/`)}
+                  className="absolute top-2 right-2 p-1.5 bg-gray-800 text-white rounded transition"
+                >
+                  <Copy size={12} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">4. Enable image / video / music gen (gemcli)</h4>
+              <p className="text-xs text-gray-500">Image generation (Imagen 3), video (Veo 2), and music (Lyria) require a gemcli login:</p>
+              <div className="relative">
+                <pre className="p-3 bg-gray-900 text-gray-300 rounded-lg font-mono text-xs overflow-x-auto">
+                  {`gemcli login\n# Then in the Gateway UI: Accounts → Sync gemcli`}
+                </pre>
+                <button
+                  onClick={() => copyToClipboard(`gemcli login`)}
+                  className="absolute top-2 right-2 p-1.5 bg-gray-800 text-white rounded transition"
+                >
+                  <Copy size={12} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">5. Verify</h4>
               <div className="relative">
                 <pre className="p-3 bg-gray-900 text-gray-300 rounded-lg font-mono text-xs overflow-x-auto">
                   {`openclaw plugins list\nopenclaw skills list`}
@@ -411,11 +444,11 @@ const OpenClawPage = () => {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-500">Plugin Version</span>
-              <div className="font-mono">1.0.0</div>
+              <div className="font-mono">1.1.0</div>
             </div>
             <div>
               <span className="text-gray-500">Release Date</span>
-              <div className="font-mono">Mar 17, 2026</div>
+              <div className="font-mono">Mar 18, 2026</div>
             </div>
             <div>
               <span className="text-gray-500">Min OpenClaw</span>

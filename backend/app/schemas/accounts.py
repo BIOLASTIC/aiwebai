@@ -36,6 +36,7 @@ class AuthMethodResponse(BaseModel):
 
 class AccountBase(BaseModel):
     label: str
+    email: Optional[str] = None
     provider: str
     region_hint: Optional[str] = None
     language_hint: Optional[str] = None

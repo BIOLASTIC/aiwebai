@@ -1,3 +1,18 @@
+### Fixes applied (March 18, 2026 - batch 12 — docs update):
+- Updated frontend/public/docs/API.md: added model capabilities table, image editing routing, file upload auth note, updated model IDs to gemini-3.0-*, gemcli-status/import endpoints, capabilities field in model response, image editing cURL example
+- Updated frontend/public/docs/CONFIGURATION.md: new capabilities tables per adapter, image gen/edit routing table, gemcli login method, file auth note (JWT+API key on /v1/*), timeout table, updated troubleshooting section
+
+### Fixes applied (March 18, 2026 - batch 11 — image edit routing + account email + file auth):
+- Fixed image generation: was passing specific text model (G_3_1_PRO) to generate_content, blocking ImageFX routing — now uses GeminiModel.UNSPECIFIED for both generate_image and edit_image
+- Fixed image editing: task runner was always calling generate_image ignoring reference_file_ids — now calls edit_image with loaded bytes when reference files present
+- Fixed file upload 401: /v1/files changed from get_user_by_api_key to get_user_by_key_or_jwt (JWT Bearer tokens now accepted)
+- Fixed model selector showing wrong models for image tab: ModelSelector now uses caps.images === true instead of flash-name matching
+- Added gemcli account sync: GET /admin/accounts/gemcli-status + POST /admin/accounts/import/gemcli endpoints; Accounts page shows Sync gemcli button + email display
+- Added email column to accounts table (alembic migration)
+- Added edit_image to McpCliAdapter (raises immediately for reference files, falls back to generate for no-reference)
+- Added asyncio.wait 75s hard timeout for image edit jobs in tasks.py
+- Added httpx timeout=60 via kwargs to webapi edit_image to break gemini_webapi polling loop
+
 ### Fixes applied (March 17, 2026 - batch 10 — ERR_UNKNOWN_URL_SCHEME + hardcoded IP fixes):
 - Removed hardcoded `192.168.88.81` IP from mcpcli_adapter.py, webapi_adapter.py, and utils/media.py — all now return root-relative `/uploads/filename` URLs accessible from any host
 - Fixed task URL validation in tasks.py to accept root-relative paths (not just `http://...`)

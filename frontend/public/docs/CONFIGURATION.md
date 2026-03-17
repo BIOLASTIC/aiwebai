@@ -6,8 +6,11 @@ This gateway exposes **two upstream Gemini libraries** behind a unified REST API
 
 | Adapter | Library | Best for |
 |---------|---------|----------|
-| **webapi** | `gemini-webapi` (HanaokaYuzu) | Chat, streaming, image gen, gems, extensions, history |
-| **mcpcli** | `gemini-web-mcp-cli` | Video gen, music gen, deep research, usage limits |
+| **webapi** | `gemini-webapi` (HanaokaYuzu) | Chat, streaming, image generation*, image editing*, gems, extensions, history |
+| **mcpcli** | `gemini-web-mcp-cli` (gemcli) | Image generation (Imagen 3), video gen, music gen, deep research, usage limits |
+
+> **\* Image generation & editing via webapi require a Gemini Advanced subscription.**
+> The gateway automatically falls back to mcpcli (Imagen 3) when webapi cannot generate images.
 
 ---
 
@@ -55,7 +58,15 @@ Default login: admin@local / admin123 (change immediately)
 
 Click **Import Chrome** on the Accounts page. Requires you to be logged into Gemini in Chrome on the same machine as the server.
 
-### Method 3 — API Key (mcpcli)
+### Method 3 — gemcli Login (mcpcli, for image/video/music gen)
+
+```bash
+gemcli login
+```
+
+Then go to **Accounts** → **Sync gemcli** to automatically import the logged-in account. The account's Google email will be detected and shown.
+
+### Method 4 — API Key (mcpcli)
 
 1. Get a key from https://aistudio.google.com/apikey
 2. Add account → Provider: `MCP-CLI`
@@ -84,46 +95,74 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ---
 
-## 5. Models Reference
+## 5. Models & Capabilities
 
 ### webapi adapter models (cookie auth)
 
-| Model ID | Notes |
-|----------|-------|
-| `gemini-2.5-pro` | Best reasoning |
-| `gemini-2.5-flash` | Fast + capable |
-| `gemini-2.0-flash` | Fast, good default |
-| `gemini-2.0-flash-thinking-exp` | Chain-of-thought visible |
-| `gemini-1.5-pro` | Stable, 1M context |
-| `gemini-1.5-flash` | Fast, 1M context |
-| `gemini-1.5-flash-8b` | Lightweight |
-| `learnlm-1.5-pro-experimental` | Educational tuning |
+| Model ID | Chat | Image Gen* | Image Edit* | Thinking | Streaming |
+|----------|------|-----------|-------------|---------|-----------|
+| `gemini-3.0-pro` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `gemini-3.0-flash` | ✅ | ✅ | ✅ | — | ✅ |
+| `gemini-3.0-flash-thinking` | ✅ | — | — | ✅ | ✅ |
 
-### mcpcli adapter models (API key or profile)
+> **\* Requires Gemini Advanced subscription.** Without it, image generation/editing will return an error and the gateway will automatically retry via mcpcli if a gemcli account is configured.
 
-| Model ID | Use case |
-|----------|----------|
-| `gemini-2.0-flash` | Chat |
-| `gemini-1.5-pro` | Chat |
-| `imagen-3.0` | Image generation |
-| `veo-2.0` | Video generation |
-| `lyria-1.0` | Music generation |
+**Legacy aliases** (automatically mapped to current models):
 
-### Aliases
+| Alias | Maps to |
+|-------|---------|
+| `gemini-2.5-pro` | `gemini-3.0-pro` |
+| `gemini-2.5-flash` | `gemini-3.0-flash` |
+| `gemini-2.0-flash` | `gemini-3.0-flash` |
+| `gemini-2.0-flash-thinking-exp` | `gemini-3.0-flash-thinking` |
+| `gemini-1.5-pro` | `gemini-3.0-pro` |
+| `gemini-1.5-flash` | `gemini-3.0-flash` |
 
-| Alias | Resolves to |
-|-------|-------------|
-| `gemini-flash-latest` | `gemini-2.0-flash` |
-| `gemini-pro-latest` | `gemini-1.5-pro` |
-| `gemini-thinking-latest` | `gemini-2.0-flash-thinking-exp` |
-| `gemini-video-latest` | `veo-2.0` |
-| `gemini-music-latest` | `lyria-1.0` |
+### mcpcli adapter models (gemcli login or API key)
 
-Refresh the model list: **Models** page → **Refresh Models**, or `POST /admin/models/refresh`.
+| Model ID | Chat | Image Gen | Video Gen | Music Gen | Research |
+|----------|------|-----------|-----------|-----------|---------|
+| `gemini-2.0-flash` | ✅ | — | — | — | — |
+| `gemini-1.5-pro` | ✅ | — | — | — | — |
+| `imagen-3.0` | — | ✅ | — | — | — |
+| `veo-2.0` | — | — | ✅ | — | — |
+| `lyria-1.0` | — | — | — | ✅ | — |
+| (any chat model) | — | — | — | — | ✅ |
 
 ---
 
-## 6. API Authentication
+## 6. Image Generation & Editing
+
+### Which adapter handles images?
+
+| Feature | Primary | Fallback | Requirement |
+|---------|---------|---------|-------------|
+| Generate image | mcpcli (Imagen 3) | webapi | gemcli login OR Gemini Advanced |
+| Edit image | webapi | *(no fallback)* | **Gemini Advanced required** |
+
+### Image generation flow
+
+1. Request arrives at `POST /native/tasks/image` or `POST /v1/images/generations`
+2. If `reference_file_ids` is empty → **generate mode** (mcpcli preferred → webapi fallback)
+3. If `reference_file_ids` present → **edit mode** (webapi only, requires Gemini Advanced)
+
+### Playground usage
+
+- **Image tab** → only shows image-capable models (`gemini-3.0-pro`, `gemini-3.0-flash`, `imagen-3.0`)
+- Upload a file and submit → edit mode (modifies your uploaded image)
+- No file, just a prompt → generate mode (creates a new image)
+
+### Timeouts
+
+| Operation | Timeout | Behavior on timeout |
+|-----------|---------|-------------------|
+| Image generation (webapi) | 90 s | Error; retries with mcpcli |
+| Image editing (webapi) | 60 s | Error with subscription hint |
+| Image task (background job) | 75 s | Job marked failed |
+
+---
+
+## 7. API Authentication
 
 All API requests need one of:
 
@@ -133,15 +172,21 @@ Authorization: Bearer <jwt_token>
 ```
 Obtain via `POST /admin/login` with `{"email":"...","password":"..."}`.
 
-**OpenAI-compatible routes** — API key:
+**OpenAI-compatible routes** — API key or JWT:
 ```
 X-API-Key: sk-<your_key>
 ```
+or
+```
+Authorization: Bearer <jwt_token>
+```
 Create keys in **Admin** → **API Keys**.
+
+> **Note:** `/v1/files` (file upload) now accepts both API keys and JWT Bearer tokens.
 
 ---
 
-## 7. Feature Routing
+## 8. Feature Routing
 
 The gateway picks the best adapter automatically:
 
@@ -149,17 +194,17 @@ The gateway picks the best adapter automatically:
 Request → resolve model alias
         → check capability flags
         → filter healthy accounts
-        → prefer webapi for: chat, streaming, image_edit, gems, extensions, history
-        → prefer mcpcli for: video, music, research, limits
+        → prefer mcpcli for: image generation (Imagen 3), video, music, research, limits
+        → prefer webapi for: chat, streaming, image editing, gems, extensions, history
         → on failure: retry with other adapter
-        → 503 if no adapter can handle it
+        → 502 if no adapter can handle it
 ```
 
-You can force a specific adapter via the Playground's **Provider** toggle.
+You can force a specific adapter via the Playground's **Provider** toggle or by passing `adapter: "webapi"` / `adapter: "mcpcli"` in the request body.
 
 ---
 
-## 8. Cookie Refresh
+## 9. Cookie Refresh
 
 `gemini-webapi` refreshes cookies automatically in the background. If a cookie expires:
 1. The health checker marks the account `unhealthy`
@@ -168,7 +213,7 @@ You can force a specific adapter via the Playground's **Provider** toggle.
 
 ---
 
-## 9. MCP Server Integration
+## 10. MCP Server Integration
 
 The gateway exposes all features as MCP tools on port 6403.
 
@@ -191,7 +236,7 @@ claude mcp add gemini-gateway --url http://localhost:6403/mcp/sse
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
@@ -201,3 +246,7 @@ claude mcp add gemini-gateway --url http://localhost:6403/mcp/sse
 | 503 No accounts | Add at least one account in the Accounts page |
 | Models list empty | Go to Models → Refresh Models |
 | 401 on all requests | Your JWT expired; log out and log back in |
+| Image gen returns "subscription required" | You need Gemini Advanced OR add a gemcli account (`gemcli login` → Accounts → Sync gemcli) |
+| Image editing returns "timed out" | Gemini Advanced subscription required for image editing via webapi |
+| gemcli account not showing | Run `gemcli login` in terminal, then Accounts → Sync gemcli |
+| New image generated instead of editing | Ensure a reference file is uploaded in the Playground before submitting |

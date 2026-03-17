@@ -19,6 +19,7 @@ class ModelResponse(ModelBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     discovered_at: datetime
+    capabilities: dict = {}
 
 from backend.app.models.registry import model_registry
 

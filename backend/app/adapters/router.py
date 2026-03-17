@@ -89,9 +89,13 @@ class AdapterRouter:
             for adapter in adapters:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
-        if capability in {"image", "image_edit"}:
-            # Prefer McpCliAdapter for images — webapi requires Gemini Advanced subscription
-            # which most accounts won't have; mcpcli uses imagen-3.0 directly
+        if capability == "image_edit":
+            # Image editing requires webapi (Gemini Advanced) — mcpcli cannot edit images
+            for adapter in adapters:
+                if isinstance(adapter, WebApiAdapter):
+                    return adapter
+        if capability == "image":
+            # Prefer McpCliAdapter for generation — webapi requires Gemini Advanced subscription
             for adapter in adapters:
                 if isinstance(adapter, McpCliAdapter):
                     return adapter
@@ -131,6 +135,7 @@ class AdapterRouter:
                 # Find account label if possible
                 for aid, adpt in account_manager.adapters.items():
                     if adpt is adapter:
+                        from backend.app.db.engine import AsyncSessionLocal
                         async with AsyncSessionLocal() as db:
                             from backend.app.db.models import Account
                             acct = await db.get(Account, aid)
@@ -175,14 +180,20 @@ class AdapterRouter:
             _assert_capability(forced, "image")
             return await forced.generate_image(request)
 
+        # Build ordered list: account-specific first, then model-preference, then rest
+        ordered: List[BaseAdapter] = []
         if request.account_id:
             acct_adapter = account_manager.get_adapter_for_account(request.account_id)
             if acct_adapter:
-                return await acct_adapter.generate_image(request)
+                ordered.append(acct_adapter)
 
         # Route by model first (imagen -> McpCliAdapter, others -> WebApiAdapter)
         preferred_adapter = self.get_best_adapter("image", request.model)
-        ordered = [preferred_adapter] + [a for a in all_adapters if a is not preferred_adapter]
+        if preferred_adapter not in ordered:
+            ordered.append(preferred_adapter)
+        for a in all_adapters:
+            if a not in ordered:
+                ordered.append(a)
 
         errors: Dict[str, str] = {}
         for adpt in ordered:
@@ -199,6 +210,41 @@ class AdapterRouter:
             status_code=502,
             detail=f"No adapter could generate image. {tried}",
         )
+
+    async def edit_image(self, request: ImageGenerationRequest, reference_file: bytes | None = None, adapter: str | None = None) -> Dict[str, Any]:
+        all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
+
+        if adapter is not None:
+            forced = _resolve_forced_adapter(adapter, all_adapters)
+            _assert_capability(forced, "image")
+            return await forced.edit_image(request, reference_file)
+
+        # Build ordered list: account-specific first, then model preference, then rest
+        ordered: List[BaseAdapter] = []
+        if request.account_id:
+            acct_adapter = account_manager.get_adapter_for_account(request.account_id)
+            if acct_adapter:
+                ordered.append(acct_adapter)
+
+        preferred_adapter = self.get_best_adapter("image_edit", request.model)
+        if preferred_adapter not in ordered:
+            ordered.append(preferred_adapter)
+        for a in all_adapters:
+            if a not in ordered:
+                ordered.append(a)
+
+        errors: Dict[str, str] = {}
+        for adpt in ordered:
+            try:
+                result = await adpt.edit_image(request, reference_file)
+                if result.get("data"):
+                    return result
+            except Exception as exc:
+                name = _ADAPTER_DISPLAY_NAMES.get(type(adpt), str(type(adpt)))
+                errors[name] = str(exc)
+
+        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
+        raise HTTPException(status_code=502, detail=f"No adapter could edit image. {tried}")
 
     async def generate_video(self, prompt: str, model: str | None, account_id: int | None, reference_files: list[Path] | None, options: dict | None, adapter: str | None = None):
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]

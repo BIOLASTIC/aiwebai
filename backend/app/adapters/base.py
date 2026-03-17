@@ -21,7 +21,8 @@ class BaseAdapter(ABC):
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
         raise NotImplementedError
 
-    async def edit_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
+    async def edit_image(self, request: ImageGenerationRequest, reference_file: bytes | None = None) -> Dict[str, Any]:
+        """Edit an image using the reference file bytes. Falls back to generate_image if not overridden."""
         return await self.generate_image(request)
 
     @abstractmethod
