@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from typing import List, Any, Dict
+from typing import Any, Dict
 import time
-import uuid
-from pathlib import Path
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from backend.app.auth.api_key_auth import get_user_by_api_key
-from backend.app.db.models import User, UploadedFile
-from backend.app.storage.files import FileStorage
-from backend.app.db.engine import get_db
+
+from fastapi import APIRouter, Depends, File, UploadFile
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.app.auth.api_key_auth import get_user_by_api_key
+from backend.app.config import BASE_DIR
+from backend.app.db.engine import get_db
+from backend.app.db.models import UploadedFile, User
+from backend.app.storage.files import FileStorage
 
 router = APIRouter(tags=["openai-files"])
 
@@ -24,64 +25,39 @@ class FileResponse(BaseModel):
 
 
 @router.post("/v1/files", response_model=FileResponse)
-async def upload_file(
-    file: UploadFile = File(...),
-    purpose: str = "fine-tune",
-    user: User = Depends(get_user_by_api_key),
-    db: AsyncSession = Depends(get_db),
-):
-    from backend.app.config import BASE_DIR
-
-    storage_dir = BASE_DIR / "uploads"
-    storage = FileStorage(base_dir=storage_dir)
-
+async def upload_file(file: UploadFile = File(...), purpose: str = "assistants", user: User = Depends(get_user_by_api_key), db: AsyncSession = Depends(get_db)):
+    storage = FileStorage(base_dir=BASE_DIR / "uploads")
     content = await file.read()
-
-    # Save file using FileStorage
     file_id = storage.save_bytes(content, file.filename, file.content_type or "application/octet-stream")
-
-    # Save metadata to database
+    metadata = storage.get_metadata(file_id)
     uploaded_file = UploadedFile(
         file_id=file_id,
         filename=file.filename,
         mime_type=file.content_type or "application/octet-stream",
-        size=len(content),
+        size_bytes=len(content),
+        storage_path=metadata.storage_path,
         purpose=purpose,
-        user_id=user.id,
+        owner_user_id=user.id,
     )
     db.add(uploaded_file)
     await db.commit()
-    await db.refresh(uploaded_file)
-
-    return FileResponse(
-        id=file_id, bytes=len(content), created_at=int(time.time()), filename=file.filename, purpose=purpose
-    )
-    db.add(uploaded_file)
-    db.commit()
-    db.refresh(uploaded_file)
-
-    return FileResponse(
-        id=file_id, bytes=len(content), created_at=int(time.time()), filename=file.filename, purpose=purpose
-    )
+    return FileResponse(id=file_id, bytes=len(content), created_at=int(time.time()), filename=file.filename, purpose=purpose)
 
 
 @router.get("/v1/files", response_model=Dict[str, Any])
 async def list_files(user: User = Depends(get_user_by_api_key), db: AsyncSession = Depends(get_db)):
-    # Get uploaded files for the current user
-    result = await db.execute(select(UploadedFile).filter(UploadedFile.user_id == user.id))
-    files = result.scalars().all()
-
-    file_responses = []
-    for file_record in files:
-        file_responses.append(
+    files = (await db.execute(select(UploadedFile).filter(UploadedFile.owner_user_id == user.id))).scalars().all()
+    return {
+        "object": "list",
+        "data": [
             {
-                "id": file_record.file_id,
+                "id": record.file_id,
                 "object": "file",
-                "bytes": file_record.size,
-                "created_at": int(file_record.created_at.timestamp()) if file_record.created_at else int(time.time()),
-                "filename": file_record.filename,
-                "purpose": file_record.purpose,
+                "bytes": record.size_bytes,
+                "created_at": int(record.created_at.timestamp()) if record.created_at else int(time.time()),
+                "filename": record.filename,
+                "purpose": record.purpose,
             }
-        )
-
-    return {"object": "list", "data": file_responses}
+            for record in files
+        ],
+    }

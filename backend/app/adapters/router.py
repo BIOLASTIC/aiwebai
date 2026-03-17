@@ -1,40 +1,48 @@
-from typing import List, Optional, Dict, Any, Union, AsyncGenerator
+from __future__ import annotations
+
 import time
-from backend.app.adapters.base import BaseAdapter
-from backend.app.adapters.webapi_adapter import WebApiAdapter
-from backend.app.adapters.mcpcli_adapter import McpCliAdapter
-from backend.app.accounts.manager import account_manager
-from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse
-from backend.app.schemas.native import ImageGenerationRequest
+from typing import Any, AsyncGenerator, Dict
+
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.app.accounts.manager import account_manager
+from backend.app.adapters.base import BaseAdapter
+from backend.app.adapters.mcpcli_adapter import McpCliAdapter
+from backend.app.adapters.webapi_adapter import WebApiAdapter
+from backend.app.db.models import Model
+from backend.app.models.registry import model_registry
+from backend.app.schemas.native import ImageGenerationRequest
+from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse
+
 
 class AdapterRouter:
+    def __init__(self) -> None:
+        self.mock_adapter = WebApiAdapter(mock_mode=True)
+
     def get_best_adapter(self, capability: str) -> BaseAdapter:
-        # Get adapters from account manager
         adapters = account_manager.get_all_adapters()
-        
         if not adapters:
-            raise HTTPException(
-                status_code=503, 
-                detail="No Gemini accounts linked. Please add an account in the Admin panel."
-            )
-            
-        # Priority logic: prefer webapi for chat, mcpcli for advanced tasks if available
+            return self.mock_adapter
         if capability == "chat":
             for adapter in adapters:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
-        
-        if capability == "image":
+        if capability in {"image", "image_edit"}:
             for adapter in adapters:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
             for adapter in adapters:
                 if isinstance(adapter, McpCliAdapter):
                     return adapter
-        
-        # Default to first available
+        if capability in {"video", "music", "research"}:
+            for adapter in adapters:
+                if isinstance(adapter, McpCliAdapter):
+                    return adapter
         return adapters[0]
+
+    async def refresh_catalog(self, db: AsyncSession) -> None:
+        await model_registry.discover_models()
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         adapter = self.get_best_adapter("chat")
@@ -46,28 +54,19 @@ class AdapterRouter:
             yield chunk
 
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
-        from backend.app.logging.structured import logger
-        adapters = account_manager.get_all_adapters()
-        
-        # Sort adapters: WebApi first, then McpCli
-        sorted_adapters = sorted(
-            adapters, 
-            key=lambda a: 0 if isinstance(a, WebApiAdapter) else 1
-        )
-        
         last_error = None
-        for adapter in sorted_adapters:
+        for adapter in [a for a in account_manager.get_all_adapters()] or [self.mock_adapter]:
+            if not isinstance(adapter, (WebApiAdapter, McpCliAdapter)):
+                continue
             try:
-                res = await adapter.generate_image(request)
-                if res.get("data"):
-                    return res
-                logger.warning("Adapter returned no images, trying next", adapter=type(adapter).__name__)
-            except Exception as e:
-                logger.error("Adapter.generate_image failed", adapter=type(adapter).__name__, error=str(e))
-                last_error = e
-        
+                result = await adapter.generate_image(request)
+                if result.get("data"):
+                    return result
+            except Exception as exc:
+                last_error = exc
         if last_error:
-            raise last_error
+            raise HTTPException(status_code=500, detail=str(last_error))
         return {"created": int(time.time()), "data": []}
+
 
 adapter_router = AdapterRouter()

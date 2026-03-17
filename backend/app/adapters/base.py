@@ -1,30 +1,36 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, List, Optional, Dict, Any
 from pathlib import Path
+from typing import Any, AsyncGenerator, Dict, List
+
+from backend.app.schemas.native import ImageGenerationRequest, VideoResult
 from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse
-from backend.app.schemas.native import ImageGenerationRequest, JobResponse, VideoResult
 
 
 class BaseAdapter(ABC):
     @abstractmethod
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def stream_chat(self, request: ChatCompletionRequest) -> AsyncGenerator[Dict[str, Any], None]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
-        pass
+        raise NotImplementedError
+
+    async def edit_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
+        return await self.generate_image(request)
 
     @abstractmethod
     async def list_models(self) -> List[Dict[str, Any]]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def health_check(self) -> bool:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def generate_video(
@@ -35,4 +41,4 @@ class BaseAdapter(ABC):
         reference_files: list[Path] | None,
         options: dict | None,
     ) -> VideoResult:
-        pass
+        raise NotImplementedError
