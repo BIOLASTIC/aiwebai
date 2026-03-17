@@ -2,6 +2,15 @@
 
 ## Current Status: 100% COMPLETE AND OPERATIONAL
 
+### Fixes applied (March 17, 2026):
+- Fixed Database Migration: Corrected invalid alembic syntax dropping constraint on `uploaded_files` table
+- Fixed CORS Configuration: Replaced explicit origins list with `allow_origins=["*"]` and `allow_credentials=False` to fix local IP access from the frontend
+
+
+# Progress Tracker — Gemini Unified Gateway
+
+## Current Status: 100% COMPLETE AND OPERATIONAL
+
 ### Project Completion: Gemini Unified Gateway - FULLY IMPLEMENTED
 - [x] **Complete Backend**: FastAPI application with all middleware, auth, and routing
 - [x] **OpenAI-Compatible API**: All v1 endpoints working with standard OpenAI clients
