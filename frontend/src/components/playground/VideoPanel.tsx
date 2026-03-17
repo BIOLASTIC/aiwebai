@@ -7,6 +7,9 @@ interface Message {
   content: string;
   imageUrl?: string;
   jobId?: string;
+  model?: string;
+  account?: string;
+  adapter?: string;
   ts: number;
 }
 
@@ -36,7 +39,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ messages, isLoading, selectedFi
                 <Video size={16} className="text-purple-600 dark:text-purple-400" />
               </div>
             )}
-            <div 
+            <div
               className={`max-w-[72%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed ${
                 msg.role === 'user'
                   ? 'bg-purple-600 text-white rounded-br-sm'
@@ -44,7 +47,7 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ messages, isLoading, selectedFi
               }`}
             >
               {msg.content}
-              {msg.imageUrl && (
+              {msg.imageUrl && (msg.imageUrl.startsWith('http') || msg.imageUrl.startsWith('/')) && (
                 <>
                   {/\.(mp4|webm|ogg)(\?|$)/i.test(msg.imageUrl) ? (
                     <video
@@ -66,6 +69,16 @@ const VideoPanel: React.FC<VideoPanelProps> = ({ messages, isLoading, selectedFi
               {msg.jobId && !msg.imageUrl && msg.content.includes('job started') && (
                 <div className="flex items-center gap-2 mt-2 text-xs opacity-60">
                   <Loader2 size={11} className="animate-spin" /> Generating video...
+                </div>
+              )}
+              {msg.role === 'assistant' && (
+                <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10px] text-gray-400 dark:text-gray-500 font-mono">
+                  <div className="flex flex-wrap gap-x-2">
+                    {msg.model && <span>Model: {msg.model}</span>}
+                    {msg.account && <span>Account: {msg.account}</span>}
+                    {msg.adapter && <span>({msg.adapter})</span>}
+                  </div>
+                  <span className="whitespace-nowrap">{new Date(msg.ts).toLocaleString()}</span>
                 </div>
               )}
             </div>

@@ -1,0 +1,83 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <linearGradient id="bg3" x1="0" y1="0" x2="1280" y2="720">
+    <stop stop-color="#0B1220"/>
+    <stop offset="1" stop-color="#111827"/>
+  </linearGradient>
+</defs>
+<rect width="1280" height="720" rx="28" fill="url(#bg3)"/>
+<text x="640" y="82" text-anchor="middle" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700">Capability map</text>
+<text x="640" y="118" text-anchor="middle" fill="#CBD5E1" font-family="Arial, Helvetica, sans-serif" font-size="20">Feature coverage exposed by the current repository structure</text>
+
+<rect x="220" y="176" width="840" height="420" rx="28" fill="#0F172A" stroke="#334155"/>
+
+<!-- headers -->
+<rect x="260" y="210" width="300" height="56" rx="16" fill="#132443"/>
+<rect x="580" y="210" width="180" height="56" rx="16" fill="#14274B"/>
+<rect x="780" y="210" width="240" height="56" rx="16" fill="#14274B"/>
+<text x="410" y="246" text-anchor="middle" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Capability</text>
+<text x="670" y="246" text-anchor="middle" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">webapi</text>
+<text x="900" y="246" text-anchor="middle" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">mcpcli</text>
+
+rows = [
+("Chat completions", "✓", "✓"),
+("SSE-style streaming", "✓", "partial"),
+("Image generation", "✓", "✓"),
+("Image editing", "✓", "—"),
+("Video generation", "—", "✓"),
+("Music generation", "—", "✓"),
+("Deep research", "—", "✓"),
+("History / gems / extensions", "provider-dependent", "limited"),
+]
+<rect x="260" y="258" width="300" height="52" rx="14" fill="#111C31"/>
+<rect x="580" y="258" width="180" height="52" rx="14" fill="#111C31"/>
+<rect x="780" y="258" width="240" height="52" rx="14" fill="#111C31"/>
+<text x="280" y="288" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="20">Chat completions</text>
+<text x="670" y="288" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<text x="900" y="288" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<rect x="260" y="322" width="300" height="52" rx="14" fill="#111C31"/>
+<rect x="580" y="322" width="180" height="52" rx="14" fill="#111C31"/>
+<rect x="780" y="322" width="240" height="52" rx="14" fill="#111C31"/>
+<text x="280" y="352" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="20">SSE-style streaming</text>
+<text x="670" y="352" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<text x="900" y="352" text-anchor="middle" fill="#F59E0B" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">partial</text>
+<rect x="260" y="386" width="300" height="52" rx="14" fill="#111C31"/>
+<rect x="580" y="386" width="180" height="52" rx="14" fill="#111C31"/>
+<rect x="780" y="386" width="240" height="52" rx="14" fill="#111C31"/>
+<text x="280" y="416" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="20">Image generation</text>
+<text x="670" y="416" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<text x="900" y="416" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<rect x="260" y="450" width="300" height="52" rx="14" fill="#111C31"/>
+<rect x="580" y="450" width="180" height="52" rx="14" fill="#111C31"/>
+<rect x="780" y="450" width="240" height="52" rx="14" fill="#111C31"/>
+<text x="280" y="480" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="20">Image editing</text>
+<text x="670" y="480" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<text x="900" y="480" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">—</text>
+<rect x="260" y="514" width="300" height="52" rx="14" fill="#111C31"/>
+<rect x="580" y="514" width="180" height="52" rx="14" fill="#111C31"/>
+<rect x="780" y="514" width="240" height="52" rx="14" fill="#111C31"/>
+<text x="280" y="544" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="20">Video generation</text>
+<text x="670" y="544" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">—</text>
+<text x="900" y="544" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<rect x="260" y="578" width="300" height="52" rx="14" fill="#111C31"/>
+<rect x="580" y="578" width="180" height="52" rx="14" fill="#111C31"/>
+<rect x="780" y="578" width="240" height="52" rx="14" fill="#111C31"/>
+<text x="280" y="608" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="20">Music generation</text>
+<text x="670" y="608" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">—</text>
+<text x="900" y="608" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<rect x="260" y="642" width="300" height="52" rx="14" fill="#111C31"/>
+<rect x="580" y="642" width="180" height="52" rx="14" fill="#111C31"/>
+<rect x="780" y="642" width="240" height="52" rx="14" fill="#111C31"/>
+<text x="280" y="672" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="20">Deep research</text>
+<text x="670" y="672" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">—</text>
+<text x="900" y="672" text-anchor="middle" fill="#4ADE80" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">✓</text>
+<rect x="260" y="706" width="300" height="52" rx="14" fill="#111C31"/>
+<rect x="580" y="706" width="180" height="52" rx="14" fill="#111C31"/>
+<rect x="780" y="706" width="240" height="52" rx="14" fill="#111C31"/>
+<text x="280" y="736" fill="#E2E8F0" font-family="Arial, Helvetica, sans-serif" font-size="20">History / gems / extensions</text>
+<text x="670" y="736" text-anchor="middle" fill="#F59E0B" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">provider-dependent</text>
+<text x="900" y="736" text-anchor="middle" fill="#F59E0B" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700">limited</text>
+<text x="640" y="646" text-anchor="middle" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="18">
+The gateway routes to the best adapter based on capability, account availability, and model selection.
+</text>
+</svg>

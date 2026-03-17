@@ -42,3 +42,8 @@ class BaseAdapter(ABC):
         options: dict | None,
     ) -> VideoResult:
         raise NotImplementedError
+
+    async def get_limits(self) -> Dict[str, Any]:
+        """Return usage limits and remaining quota. By default, returns empty/not supported."""
+        return {"status": "not_supported_by_adapter"}
+

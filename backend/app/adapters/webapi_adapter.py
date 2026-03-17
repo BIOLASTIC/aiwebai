@@ -115,8 +115,17 @@ class WebApiAdapter(BaseAdapter):
     async def init(self) -> None:
         if self.mock_mode or not self.client or self._initialized:
             return
-        await self.client.init(timeout=30, auto_close=False, close_delay=300, auto_refresh=True)
-        self._initialized = True
+        try:
+            await self.client.init(timeout=30, auto_close=False, close_delay=300, auto_refresh=False)
+            self._initialized = True
+        except Exception as e:
+            err = str(e).lower()
+            if any(w in err for w in ("401", "unauthorized", "cookie", "expired", "auth")):
+                raise Exception(
+                    "Gemini session expired. Please re-import fresh browser cookies for this account "
+                    "in Admin → Accounts → Edit → Credentials."
+                )
+            raise
 
     def _require_client(self) -> None:
         if self.mock_mode or not self.client:
@@ -248,16 +257,21 @@ class WebApiAdapter(BaseAdapter):
 
         if not urls:
             response_text = getattr(output, "text", "") or ""
-            if any(w in response_text.lower() for w in ("not available", "can't", "cannot", "subscription", "upgrade")):
+            rlt = response_text.lower()
+            if any(w in rlt for w in ("not available", "can't generate", "cannot generate", "subscription", "upgrade", "advanced", "premium")):
                 raise Exception(
                     "Image generation is not available for this Google account. "
                     "You likely need a Gemini Advanced subscription. "
-                    "Use the mcpcli backend instead (run 'gemcli login' in the terminal)."
+                    "Alternatively, run 'gemcli login' in the terminal to enable image generation via the mcpcli account."
+                )
+            if any(w in rlt for w in ("expired", "session", "sign in", "log in", "authenticate")):
+                raise Exception(
+                    "Gemini session expired. Please re-import fresh browser cookies for this account in Admin → Accounts."
                 )
             raise Exception(
-                "Gemini returned a response but no images were generated. "
-                "The prompt may have been blocked by safety filters, or image generation "
-                "may not be available for this account."
+                "Gemini returned a response but no images were found. "
+                "This usually happens if the prompt was blocked by safety filters. "
+                "Try a different prompt or switch to the mcpcli backend."
             )
 
         return {"created": int(time.time()), "data": urls}
@@ -346,6 +360,10 @@ class WebApiAdapter(BaseAdapter):
             video_paths=[Path(u) for u in local_urls],
             metadata={"model": model or "gemini-3.0-flash", "url": local_urls[0]},
         )
+
+    async def get_limits(self) -> Dict[str, Any]:
+        """WebAPI adapter doesn't directly support usage limits retrieval in the same way."""
+        return {"status": "not_supported_by_adapter", "message": "Usage limits checking is primarily supported via the mcpcli adapter."}
 
     # ------------------------------------------------------------------
     # Model listing & health

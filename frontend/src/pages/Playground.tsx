@@ -20,6 +20,9 @@ interface Message {
   content: string
   imageUrl?: string
   jobId?: string
+  model?: string
+  account?: string
+  adapter?: string
   ts: number
 }
 interface Chat {
@@ -155,9 +158,13 @@ const Playground = () => {
             : rawUrl?.startsWith('http')
             ? rawUrl
             : undefined
+
+          const meta = r.data.metadata || {}
           updateLastAssistant(chatId, {
             content: `${type.charAt(0).toUpperCase() + type.slice(1)} generation complete.`,
             imageUrl,
+            account: meta.account,
+            ts: meta.created_at ? new Date(meta.created_at).getTime() : Date.now()
           })
         } else if (r.data.status === 'failed') {
           clearInterval(iv)
@@ -188,7 +195,15 @@ const Playground = () => {
           model: selectedModel,
           messages: history,
         }, { headers })
-        appendMessage(chatId, { role: 'assistant', content: res.data.choices[0].message.content, ts: Date.now() })
+        const meta = res.data.metadata || {}
+        appendMessage(chatId, {
+          role: 'assistant',
+          content: res.data.choices[0].message.content,
+          ts: Date.now(),
+          model: res.data.model,
+          account: meta.account,
+          adapter: meta.adapter
+        })
       } else {
         // If we have files to upload, upload them first and get file IDs
         let uploadedFileIds: string[] = [];

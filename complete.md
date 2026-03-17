@@ -1,3 +1,13 @@
+### Fixes applied (March 17, 2026 - batch 10 — ERR_UNKNOWN_URL_SCHEME + hardcoded IP fixes):
+- Removed hardcoded `192.168.88.81` IP from mcpcli_adapter.py, webapi_adapter.py, and utils/media.py — all now return root-relative `/uploads/filename` URLs accessible from any host
+- Fixed task URL validation in tasks.py to accept root-relative paths (not just `http://...`)
+- Fixed frontend pollJob to resolve relative URLs using `API_BASE` before setting imageUrl
+- Fixed frontend ImagePanel and ChatPanel to guard img src — only renders when imageUrl starts with 'http' or '/' (prevents ERR_UNKNOWN_URL_SCHEME from old bad localStorage values)
+- Fixed mcpcli image generation: now passes `--model flash` flag (maps imagen-3.0 → flash, imagen-3.0-pro → pro) — without this flag gemcli returned text instead of generating an image
+- Fixed temp file creation: changed `delete=False` to `delete=True` in image/video temp file creation so the file doesn't exist when gemcli writes to the path
+- Added explicit error when gemcli produces an empty/missing output file
+- Verified: image generation (job 87) completes with `/uploads/...` URL, file is 78KB, HTTP 200
+
 ### Fixes applied (March 17, 2026 - batch 9 — gemini-webapi full integration):
 - Updated webapi adapter: new models gemini-3.0-pro / gemini-3.0-flash / gemini-3.0-flash-thinking (mapping to internal Model enum G_3_1_PRO / G_3_0_FLASH / G_3_0_FLASH_THINKING)
 - Added legacy alias map so old model IDs (gemini-2.0-flash etc.) still route correctly

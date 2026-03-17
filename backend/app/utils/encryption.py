@@ -5,12 +5,15 @@ import base64
 # Simple encryption utility using MASTER_ENCRYPTION_KEY
 # If key is missing, this will fail on startup which is good for security
 try:
-    _fernet = Fernet(settings.MASTER_ENCRYPTION_KEY.encode())
+    key = settings.MASTER_ENCRYPTION_KEY
+    if not key or len(key) < 10:
+        # Fallback to a stable dummy key for dev if NOT provided,
+        # but don't generate a new one every restart
+        key = "RN8EKMM-PkW4853BCQGOvAxh8VsSeYiIBA7V0TBuzBE="
+    _fernet = Fernet(key.encode())
 except Exception:
-    # For development, generate a dummy key if not set
-    # In production, this must be set in .env
-    dummy_key = Fernet.generate_key()
-    _fernet = Fernet(dummy_key)
+    # Final fallback to allow boot if even the hardcoded key is invalid for Fernet
+    _fernet = Fernet(b'RN8EKMM-PkW4853BCQGOvAxh8VsSeYiIBA7V0TBuzBE=')
 
 
 def encrypt(data: str) -> str:

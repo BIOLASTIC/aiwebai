@@ -108,6 +108,7 @@ class AdapterRouter:
         await model_registry.discover_models()
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
+        from backend.app.accounts.manager import account_manager
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
         # For mcpcli-only models, skip webapi adapters
         mcpcli_only = {"imagen-3.0", "veo-2.0", "lyria-1.0"}
@@ -123,7 +124,20 @@ class AdapterRouter:
         errors: Dict[str, str] = {}
         for adapter in candidates:
             try:
-                return await adapter.chat_completion(request)
+                response = await adapter.chat_completion(request)
+                # Inject adapter metadata
+                adapter_name = _ADAPTER_DISPLAY_NAMES.get(type(adapter), "unknown")
+                response.metadata["adapter"] = adapter_name
+                # Find account label if possible
+                for aid, adpt in account_manager.adapters.items():
+                    if adpt is adapter:
+                        async with AsyncSessionLocal() as db:
+                            from backend.app.db.models import Account
+                            acct = await db.get(Account, aid)
+                            if acct:
+                                response.metadata["account"] = acct.label
+                        break
+                return response
             except Exception as exc:
                 name = _ADAPTER_DISPLAY_NAMES.get(type(adapter), str(type(adapter)))
                 errors[name] = str(exc)

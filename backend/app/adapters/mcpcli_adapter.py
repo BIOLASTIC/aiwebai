@@ -116,6 +116,12 @@ class McpCliAdapter(BaseAdapter):
         
         if stdout_str.lower().startswith("error:") or "no valid authentication" in stdout_str.lower():
             raise Exception(stdout_str)
+        # Gemcli returned a text response instead of generating an image
+        if "we think we might have gotten this wrong" in stdout_str.lower():
+            raise Exception(
+                f"gemcli returned a text response instead of an image. "
+                "Try a more descriptive prompt, e.g. 'Generate an image of a cat sitting on a mat'."
+            )
 
         return stdout_str
 
@@ -156,14 +162,38 @@ class McpCliAdapter(BaseAdapter):
             "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
         }
 
+    # Words that already signal an image-generation intent to gemcli
+    _IMG_TRIGGER_WORDS = (
+        "generate", "create", "draw", "make", "render", "produce",
+        "paint", "design", "show me", "illustrate", "picture of",
+        "image of", "photo of", "portrait of",
+    )
+
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
         # Use -o to save image to a temp file; without -o gemcli renders to screen
         import tempfile
         suffix = ".png"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        # Create a unique path but remove the empty placeholder so gemcli can write freely
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
             tmp_path = tmp.name
-        args = ["image", request.prompt, "-o", tmp_path]
+
+        prompt = request.prompt.strip()
+        # Ensure the prompt explicitly requests image generation — gemcli's image command
+        # may return text for short/ambiguous prompts like "cat" or "dog".
+        if not any(w in prompt.lower() for w in self._IMG_TRIGGER_WORDS):
+            prompt = f"Generate a detailed image of: {prompt}"
+
+        # Map our model names to gemcli model flags (flash = Nano Banana 2, pro = Nano Banana Pro)
+        _IMG_MODEL_MAP = {"imagen-3.0": "flash", "imagen-3.0-pro": "pro"}
+        gemcli_model = _IMG_MODEL_MAP.get(request.model or "", "flash") if request.model else "flash"
+        args = ["image", prompt, "-o", tmp_path, "--model", gemcli_model]
         await self._run_gemcli(args)
+        if not Path(tmp_path).exists() or Path(tmp_path).stat().st_size == 0:
+            raise Exception(
+                "gemcli image produced no output file. "
+                "This usually means the prompt was not understood as an image request. "
+                "Try a more descriptive prompt."
+            )
         url = await self._move_to_uploads(tmp_path)
         return {"created": int(time.time()), "data": [{"url": url}]}
 
@@ -194,7 +224,7 @@ class McpCliAdapter(BaseAdapter):
 
     async def generate_video(self, prompt: str, model: str | None, account_id: int | None, reference_files: list[Path] | None, options: dict | None) -> VideoResult:
         import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as tmp:
             tmp_path = tmp.name
         args = ["video", prompt, "-o", tmp_path]
         # gemcli video only accepts: flash, pro, thinking — map our model aliases
@@ -216,3 +246,13 @@ class McpCliAdapter(BaseAdapter):
     async def deep_research(self, prompt: str) -> str:
         output = await self._run_gemcli(["research", prompt])
         return output.strip()
+
+    async def get_limits(self) -> Dict[str, Any]:
+        try:
+            output = await self._run_gemcli(["limits", "--json"]) if "--json" in "limits" else await self._run_gemcli(["limits"])
+            # In case gemcli doesn't support --json, just return the raw text inside a dict
+            if output.strip().startswith("{") and output.strip().endswith("}"):
+                 return json.loads(output)
+            return {"status": "success", "raw": output}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}

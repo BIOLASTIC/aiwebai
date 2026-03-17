@@ -37,6 +37,7 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: List[ChatCompletionChoice]
     usage: Optional[Dict[str, int]] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ResponsesRequest(BaseModel):

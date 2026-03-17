@@ -24,6 +24,9 @@ interface Message {
   content: string;
   imageUrl?: string;
   jobId?: string;
+  model?: string;
+  account?: string;
+  adapter?: string;
   ts: number;
 }
 
@@ -74,6 +77,16 @@ const ImagePanel: React.FC<ImagePanelProps> = ({ messages, isLoading, selectedFi
                 {msg.jobId && !msg.imageUrl && msg.content.includes('job started') && (
                   <div className="flex items-center gap-2 mt-2 text-xs opacity-60">
                     <Loader2 size={11} className="animate-spin" /> Generating image...
+                  </div>
+                )}
+                {msg.role === 'assistant' && (
+                  <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10px] text-gray-400 dark:text-gray-500 font-mono">
+                    <div className="flex flex-wrap gap-x-2">
+                      {msg.model && <span>Model: {msg.model}</span>}
+                      {msg.account && <span>Account: {msg.account}</span>}
+                      {msg.adapter && <span>({msg.adapter})</span>}
+                    </div>
+                    <span className="whitespace-nowrap">{new Date(msg.ts).toLocaleString()}</span>
                   </div>
                 )}
               </div>

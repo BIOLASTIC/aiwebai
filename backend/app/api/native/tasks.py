@@ -86,7 +86,32 @@ async def create_research_task(request: TaskRequest, background_tasks: Backgroun
 
 @router.get("/{job_id}")
 async def get_task_status(job_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_user_by_key_or_jwt)):
-    job = await db.get(Job, job_id)
+    from sqlalchemy.orm import selectinload
+    from backend.app.db.models import Account
+
+    # Use select to join with account
+    stmt = select(Job).where(Job.id == job_id)
+    result = await db.execute(stmt)
+    job = result.scalar_one_or_none()
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return {"job_id": job.id, "type": job.job_type, "status": job.status, "progress": job.progress_pct, "result_url": job.result_url, "error": job.error}
+
+    account_label = "unknown"
+    if job.account_id:
+        account = await db.get(Account, job.account_id)
+        if account:
+            account_label = account.label
+
+    return {
+        "job_id": job.id,
+        "type": job.job_type,
+        "status": job.status,
+        "progress": job.progress_pct,
+        "result_url": job.result_url,
+        "error": job.error,
+        "metadata": {
+            "account": account_label,
+            "created_at": job.created_at.isoformat() if job.created_at else None
+        }
+    }
