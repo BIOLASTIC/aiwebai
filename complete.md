@@ -1,3 +1,7 @@
+### Fixes applied (March 17, 2026 - batch 3):
+- Fixed Database Encryption Key Issue: The  error led to discovering that the  was using the old Fernet key . Removing and resetting the database allowed the application to safely load credentials for imported accounts.
+- Fixed Frontend Mock URLs: The webapi adapter falls back to `mock://image/UUID` if image generation credentials are missing/invalid in local modes. Updated  and  to handle  URL prefixes by gracefully pointing them to placeholder images () instead of trying to render broken links.
+
 # Progress Tracker — Gemini Unified Gateway
 
 ## Current Status: 100% COMPLETE AND OPERATIONAL

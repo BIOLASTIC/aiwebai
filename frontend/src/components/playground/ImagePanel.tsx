@@ -45,7 +45,7 @@ const ImagePanel: React.FC<ImagePanelProps> = ({ messages, isLoading, selectedFi
               {msg.content}
               {msg.imageUrl && (
                 <img 
-                  src={msg.imageUrl} 
+                  src={msg.imageUrl?.startsWith("mock://") ? "https://placehold.co/600x400/png?text=Mock+Image+Generated" : msg.imageUrl} 
                   alt="generated" 
                   className="mt-3 rounded-xl max-w-full max-h-64 object-contain cursor-pointer"
                   onClick={() => setExpandedImage(msg.imageUrl!)}
