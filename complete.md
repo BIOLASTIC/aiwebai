@@ -1,3 +1,25 @@
+### Fixes applied (March 17, 2026 - batch 8):
+- Fixed mcpcli adapter profile routing: when no credentials stored for mcpcli account, adapter was passing `--profile "Test MCPCLI"` to gemcli but that profile had no auth; fixed to only pass `--profile` when credentials are explicitly stored, falling back to the authenticated default profile
+- Image generation now fully working end-to-end: gemcli uses default profile (cookies present), generates real PNG images (1408x768), stores in uploads/ and returns HTTP URL
+- Verified: Image tab defaults to Imagen 3.0 [mcpcli], generates images in ~30 seconds
+
+### Fixes applied (March 17, 2026 - batch 7):
+- Fixed image generation adapter routing: backend now prefers mcpcli (imagen-3.0) over webapi for images — webapi requires Gemini Advanced subscription; mcpcli uses gemcli directly
+- Fixed Backend dropdown values: frontend was sending 'gemini-webapi'/'gemini-web-mcp-cli' but backend expected 'webapi'/'mcpcli'
+- Fixed model defaults per tool: Image tab now defaults to 'imagen-3.0', Video → 'veo-2.0', Music → 'lyria-1.0', Research → 'gemini-research'
+- Fixed ModelSelector image filter: 'imagen-3.0 [mcpcli]' is now first in image dropdown; only shows relevant flash models below
+- Fixed music/research model filter: only shows dedicated models (lyria/research) not all mcpcli models
+- Added AdapterErrorCard to ImagePanel: shows actionable error with gemcli login hint
+
+### Fixes applied (March 17, 2026 - batch 6):
+- Fixed MCP /status endpoint: added to auth middleware allowlist so frontend can check server health without MCP token (was returning 401, showing "Offline")
+- Fixed mcp.list_tools() async: awaited the coroutine to get correct tool count (was showing 0 tools instead of 9)
+- MCP page now shows "Gemini Gateway: Online · streamable-http · 9 tools"
+- Fixed adapter routing: adapter/account_id params now properly forwarded to all task endpoints
+- Fixed mcpcli auth sync: chrome-profiles directory now created alongside auth.json
+- Improved OpenClaw page: live account status, capability matrix, adapter selector, 5/5 accounts active
+- Improved AccountSelector: capability icons (💬🖼️🎬🎵🔬) shown per account in playground
+
 ### MCP & OpenClaw Integration (March 17, 2026):
 - [x] **Universal MCP Support**: Mounted MCP server under `/mcp` with modern `streamable-http` transport support.
 - [x] **MCP Token System**: New secure token management API (`POST /admin/mcp/tokens`) with "reveal once" security.

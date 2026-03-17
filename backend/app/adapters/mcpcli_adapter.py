@@ -98,7 +98,9 @@ class McpCliAdapter(BaseAdapter):
             gemcli_path = str(gemcli_path)
 
         cmd = [gemcli_path]
-        if self.profile:
+        # Only pass --profile if we have credentials synced to that profile.
+        # When secure_1psid is None we rely on the default authenticated profile.
+        if self.profile and self.secure_1psid:
             cmd.extend(["--profile", self.profile])
         cmd.extend(args)
 
