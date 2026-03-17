@@ -1,3 +1,6 @@
+### Fixes applied (March 17, 2026 - batch 4):
+- Fixed Model Selector Capabilities for MCPCLI: The `mcpcli_adapter.py` models list was missing proper `capabilities` tags for its available models, causing them to all default to `chat: true` (or empty). This meant the frontend's Model Selector couldn't properly detect that `imagen-3.0` was for `image` and `veo-2.0` was for `video` when connected to an mcpcli provider account. The adapter was updated to declare proper `images: True`, `video: True`, and `music: True` capabilities so the frontend tabs populate correctly.
+
 ### Fixes applied (March 17, 2026 - batch 3):
 - Fixed Database Encryption Key Issue: The  error led to discovering that the  was using the old Fernet key . Removing and resetting the database allowed the application to safely load credentials for imported accounts.
 - Fixed Frontend Mock URLs: The webapi adapter falls back to `mock://image/UUID` if image generation credentials are missing/invalid in local modes. Updated  and  to handle  URL prefixes by gracefully pointing them to placeholder images () instead of trying to render broken links.

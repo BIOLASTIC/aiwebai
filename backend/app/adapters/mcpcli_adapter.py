@@ -107,25 +107,27 @@ class McpCliAdapter(BaseAdapter):
         """Return models available via gemini-web-mcp-cli (includes video/music/research capable ones)."""
         return [
             # Models confirmed to work through gemini-web-mcp-cli
-            {"id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash", "family": "gemini-2.0", "source": "mcpcli"},
+            {"id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash", "family": "gemini-2.0", "source": "mcpcli", "capabilities": {"chat": True}},
             {
                 "id": "gemini-2.0-flash-exp",
                 "display_name": "Gemini 2.0 Flash (Exp)",
                 "family": "gemini-2.0",
                 "source": "mcpcli",
+                "capabilities": {"chat": True}
             },
             {
                 "id": "gemini-2.0-pro-exp",
                 "display_name": "Gemini 2.0 Pro (Exp)",
                 "family": "gemini-2.0",
                 "source": "mcpcli",
+                "capabilities": {"chat": True}
             },
-            {"id": "gemini-1.5-pro", "display_name": "Gemini 1.5 Pro", "family": "gemini-1.5", "source": "mcpcli"},
-            {"id": "gemini-1.5-flash", "display_name": "Gemini 1.5 Flash", "family": "gemini-1.5", "source": "mcpcli"},
+            {"id": "gemini-1.5-pro", "display_name": "Gemini 1.5 Pro", "family": "gemini-1.5", "source": "mcpcli", "capabilities": {"chat": True}},
+            {"id": "gemini-1.5-flash", "display_name": "Gemini 1.5 Flash", "family": "gemini-1.5", "source": "mcpcli", "capabilities": {"chat": True}},
             # Imagen for image / video generation (used by mcp-cli internally)
-            {"id": "imagen-3.0", "display_name": "Imagen 3.0 (Image Gen)", "family": "imagen", "source": "mcpcli"},
-            {"id": "veo-2.0", "display_name": "Veo 2.0 (Video Gen)", "family": "veo", "source": "mcpcli"},
-            {"id": "lyria-1.0", "display_name": "Lyria 1.0 (Music Gen)", "family": "lyria", "source": "mcpcli"},
+            {"id": "imagen-3.0", "display_name": "Imagen 3.0 (Image Gen)", "family": "imagen", "source": "mcpcli", "capabilities": {"images": True}},
+            {"id": "veo-2.0", "display_name": "Veo 2.0 (Video Gen)", "family": "veo", "source": "mcpcli", "capabilities": {"video": True}},
+            {"id": "lyria-1.0", "display_name": "Lyria 1.0 (Music Gen)", "family": "lyria", "source": "mcpcli", "capabilities": {"music": True}},
         ]
 
     async def health_check(self) -> bool:
