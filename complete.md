@@ -1,3 +1,6 @@
+### Fixes applied (March 17, 2026 - batch 5):
+- Fixed WebAPI image models missing from image tab: Found a secondary bug where the backend API (`/admin/accounts/{id}/models?feature=image`) was trying to filter for models with the `image` capability, but the actual capability listed for the webapi models (like `imagen-3.0`) was named `images`. The endpoint now correctly resolves `feature=image` to `cap_name=images` and correctly returns `imagen-3.0` to the frontend when you're on the Image tab using the webapi provider.
+
 ### Fixes applied (March 17, 2026 - batch 4):
 - Fixed Model Selector Capabilities for MCPCLI: The `mcpcli_adapter.py` models list was missing proper `capabilities` tags for its available models, causing them to all default to `chat: true` (or empty). This meant the frontend's Model Selector couldn't properly detect that `imagen-3.0` was for `image` and `veo-2.0` was for `video` when connected to an mcpcli provider account. The adapter was updated to declare proper `images: True`, `video: True`, and `music: True` capabilities so the frontend tabs populate correctly.
 
