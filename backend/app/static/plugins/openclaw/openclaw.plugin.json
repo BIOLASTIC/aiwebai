@@ -1,0 +1,16 @@
+{
+  "id": "gemini-gateway-plugin",
+  "name": "Gemini Gateway Connector",
+  "version": "1.0.0",
+  "description": "Native OpenClaw plugin to connect with Gemini Unified Gateway tools and skills.",
+  "author": "Biolasti",
+  "entry": "index.js",
+  "skills": [
+    "skills/gateway-operator",
+    "skills/gateway-troubleshooter"
+  ],
+  "config": {
+    "url": "http://0.0.0.0:6400/mcp",
+    "authHeader": "Authorization"
+  }
+}

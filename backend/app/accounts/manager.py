@@ -1,15 +1,16 @@
+from __future__ import annotations
+
 import asyncio
 from typing import Dict, List, Optional
 
 from sqlalchemy import select
-
+from backend.app.db.engine import AsyncSessionLocal
+from backend.app.db.models import Account, AccountAuthMethod
 from backend.app.adapters.base import BaseAdapter
 from backend.app.adapters.mcpcli_adapter import McpCliAdapter
 from backend.app.adapters.webapi_adapter import WebApiAdapter
-from backend.app.db.engine import AsyncSessionLocal
-from backend.app.db.models import Account, AccountAuthMethod
-from backend.app.logging.structured import logger
 from backend.app.utils.encryption import decrypt
+from backend.app.logging.structured import logger
 
 
 class AccountManager:
@@ -34,17 +35,24 @@ class AccountManager:
 
     async def _initialize_adapter(self, db, account: Account) -> Optional[BaseAdapter]:
         auth_methods = (await db.execute(select(AccountAuthMethod).where(AccountAuthMethod.account_id == account.id))).scalars().all()
+        
+        secure_1psid = None
+        secure_1psidts = None
+        for auth_method in auth_methods:
+            if auth_method.auth_type == "cookie":
+                creds = decrypt(auth_method.encrypted_credentials)
+                if "|" in creds:
+                    secure_1psid, secure_1psidts = creds.split("|", 1)
+                else:
+                    secure_1psid = creds
+
         if account.provider == "webapi":
-            secure_1psid = None
-            secure_1psidts = None
-            for auth_method in auth_methods:
-                if auth_method.auth_type == "cookie":
-                    creds = decrypt(auth_method.encrypted_credentials)
-                    if "|" in creds:
-                        secure_1psid, secure_1psidts = creds.split("|", 1)
-            return WebApiAdapter(secure_1psid, secure_1psidts, mock_mode=not (secure_1psid and secure_1psidts))
+            return WebApiAdapter(secure_1psid, secure_1psidts, mock_mode=not secure_1psid)
+        
         if account.provider == "mcpcli":
-            return McpCliAdapter(profile=account.label)
+            # Pass cookies to McpCliAdapter so it can sync them to auth.json before execution
+            return McpCliAdapter(profile=account.label, secure_1psid=secure_1psid, secure_1psidts=secure_1psidts)
+            
         return None
 
     def get_adapter_for_account(self, account_id: int) -> Optional[BaseAdapter]:

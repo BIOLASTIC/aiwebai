@@ -1,0 +1,19 @@
+{
+  "name": "gemini-gateway-openclaw-plugin",
+  "version": "1.0.0",
+  "description": "OpenClaw plugin for Gemini Unified Gateway",
+  "main": "index.js",
+  "openclaw": {
+    "extensions": [
+      {
+        "type": "skill",
+        "path": "skills/gateway-operator"
+      },
+      {
+        "type": "skill",
+        "path": "skills/gateway-troubleshooter"
+      }
+    ]
+  },
+  "dependencies": {}
+}

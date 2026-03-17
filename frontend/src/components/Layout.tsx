@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, Box, PlaySquare, LogOut, Sun, Moon, Laptop, Menu, X, History, TrendingUp, Shield, Activity, Server, LayoutGrid, BookOpen } from 'lucide-react'
+import { LayoutDashboard, Users, Box, PlaySquare, LogOut, Sun, Moon, Laptop, Menu, X, History, TrendingUp, Shield, Activity, Server, LayoutGrid, BookOpen, Cpu } from 'lucide-react'
 import { useTheme } from './ThemeProvider'
 
 const Layout = () => {
@@ -24,6 +24,7 @@ const Layout = () => {
     { path: '/admin', label: 'Admin', icon: <Shield size={20} /> },
     { path: '/health', label: 'Health', icon: <Activity size={20} /> },
     { path: '/mcp', label: 'MCP', icon: <Server size={20} /> },
+    { path: '/openclaw', label: 'OpenClaw', icon: <Cpu size={20} /> },
     { path: '/packages', label: 'Packages', icon: <Box size={20} /> },
     { path: '/features', label: 'Features', icon: <LayoutGrid size={20} /> },
     { path: '/docs', label: 'Docs', icon: <BookOpen size={20} /> },

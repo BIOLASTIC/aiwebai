@@ -1,3 +1,11 @@
+### MCP & OpenClaw Integration (March 17, 2026):
+- [x] **Universal MCP Support**: Mounted MCP server under `/mcp` with modern `streamable-http` transport support.
+- [x] **MCP Token System**: New secure token management API (`POST /admin/mcp/tokens`) with "reveal once" security.
+- [x] **Expanded MCP Tools**: Registry expanded to include `generate_video`, `generate_music`, `deep_research`, and `list_files`.
+- [x] **MCP Clients Configuration Page**: Replaced legacy settings with a multi-client dashboard for Claude, Codex, and OpenCode.
+- [x] **OpenClaw Native Plugin**: Built plugin package with bundled skills (`gateway-operator`, `gateway-troubleshooter`).
+- [x] **OpenClaw Admin Page**: Dedicated integration page with download links and install instructions.
+
 ### Fixes applied (March 17, 2026 - batch 5):
 - Fixed WebAPI image models missing from image tab: Found a secondary bug where the backend API (`/admin/accounts/{id}/models?feature=image`) was trying to filter for models with the `image` capability, but the actual capability listed for the webapi models (like `imagen-3.0`) was named `images`. The endpoint now correctly resolves `feature=image` to `cap_name=images` and correctly returns `imagen-3.0` to the frontend when you're on the Image tab using the webapi provider.
 
@@ -10,7 +18,12 @@
 
 # Progress Tracker — Gemini Unified Gateway
 
-## Current Status: 100% COMPLETE AND OPERATIONAL
+## Project Status: 100% COMPLETE - IPR PLAN FULLY IMPLEMENTED
+- ✅ **Universal MCP Support**: Mounted MCP server under `/mcp` with modern `streamable-http` transport.
+- ✅ **MCP Token System**: Secure token management API with "reveal once" security.
+- ✅ **Expanded MCP Tools**: Full suite of tools (chat, image, video, music, research, files).
+- ✅ **MCP Clients Dashboard**: Comprehensive multi-client configuration UI.
+- ✅ **OpenClaw Integration**: Native plugin with bundled skills and dedicated admin page.
 
 ### Fixes applied (March 17, 2026):
 - Fixed Database Migration: Corrected invalid alembic syntax dropping constraint on `uploaded_files` table
@@ -19,7 +32,12 @@
 
 # Progress Tracker — Gemini Unified Gateway
 
-## Current Status: 100% COMPLETE AND OPERATIONAL
+## Project Status: 100% COMPLETE - IPR PLAN FULLY IMPLEMENTED
+- ✅ **Universal MCP Support**: Mounted MCP server under `/mcp` with modern `streamable-http` transport.
+- ✅ **MCP Token System**: Secure token management API with "reveal once" security.
+- ✅ **Expanded MCP Tools**: Full suite of tools (chat, image, video, music, research, files).
+- ✅ **MCP Clients Dashboard**: Comprehensive multi-client configuration UI.
+- ✅ **OpenClaw Integration**: Native plugin with bundled skills and dedicated admin page.
 
 ### Project Completion: Gemini Unified Gateway - FULLY IMPLEMENTED
 - [x] **Complete Backend**: FastAPI application with all middleware, auth, and routing

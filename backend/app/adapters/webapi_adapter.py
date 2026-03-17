@@ -7,11 +7,12 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from backend.app.adapters.base import BaseAdapter
 from backend.app.schemas.native import ImageGenerationRequest, VideoResult
+from backend.app.utils.media import download_to_uploads
 from backend.app.schemas.openai import ChatCompletionChoice, ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 
 KNOWN_WEBAPI_MODELS: List[Dict[str, Any]] = [
     {"id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro", "family": "pro", "capabilities": {"chat": True, "thinking": True}},
-    {"id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash", "family": "flash", "capabilities": {"chat": True, "streaming": True}},
+    {"id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash", "family": "flash", "capabilities": {"chat": True, "streaming": True, "video": True}},
     {"id": "gemini-2.0-flash-thinking-exp", "display_name": "Gemini Thinking", "family": "thinking", "capabilities": {"chat": True, "thinking": True}},
     {"id": "imagen-3.0", "display_name": "Imagen 3.0", "family": "image", "capabilities": {"images": True, "image_edit": True}},
     {"id": "gemini-research", "display_name": "Gemini Research", "family": "research", "capabilities": {"research": True}},
@@ -50,7 +51,7 @@ class WebApiAdapter(BaseAdapter):
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         last_message = request.messages[-1].content if request.messages else ""
         if self.mock_mode or not self.client:
-                raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
+            raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
         else:
             await self.init()
             session = await self._get_chat_session(request.user)
@@ -69,17 +70,19 @@ class WebApiAdapter(BaseAdapter):
         chunk_id = f"chatcmpl-{uuid.uuid4()}"
         created = int(time.time())
         if self.mock_mode or not self.client:
-                raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
+            raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
         else:
             await self.init()
             session = await self._get_chat_session(request.user)
             async for chunk in session.send_message_stream(last_message):
                 delta = getattr(chunk, "text_delta", None) or getattr(chunk, "text", "")
+                yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}]}
+        yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
 
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
         prompt = request.prompt.strip()
         if self.mock_mode or not self.client:
-                raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
+            raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
         await self.init()
         output = await self.client.generate_content(prompt, model="gemini-3.0-flash")
         images = getattr(output, "images", []) or []
@@ -87,13 +90,40 @@ class WebApiAdapter(BaseAdapter):
         for image in images:
             url = getattr(image, "url", None)
             if url:
-                urls.append({"url": url})
+                # Download locally to avoid cloud dependency
+                local_url = await download_to_uploads(url)
+                urls.append({"url": local_url})
         if not urls:
             raise Exception("Gemini returned a response but no images were found. This usually happens if the prompt was blocked by safety filters.")
         return {"created": int(time.time()), "data": urls}
 
-    async def edit_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
-        return await self.generate_image(request)
+    async def generate_video(
+        self,
+        prompt: str,
+        model: str | None,
+        account_id: int | None,
+        reference_files: list[Path] | None,
+        options: dict | None,
+    ) -> VideoResult:
+        if self.mock_mode or not self.client:
+            raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
+        
+        await self.init()
+        output = await self.client.generate_content(prompt, model="gemini-3.0-flash")
+        
+        videos = getattr(output, "videos", []) or []
+        local_urls = []
+        
+        for video in videos:
+            url = getattr(video, "url", None)
+            if url:
+                local_url = await download_to_uploads(url)
+                local_urls.append(Path(local_url))
+                
+        if not local_urls:
+            raise Exception("Gemini returned a response but no video results were found. Note: Video generation is experimental in the Web interface.")
+            
+        return VideoResult(video_paths=local_urls, metadata={"model": "gemini-3.0-flash"})
 
     async def list_models(self) -> List[Dict[str, Any]]:
         return KNOWN_WEBAPI_MODELS
@@ -107,6 +137,3 @@ class WebApiAdapter(BaseAdapter):
             return True
         except Exception:
             return False
-
-    async def generate_video(self, prompt: str, model: str | None, account_id: int | None, reference_files: list[Path] | None, options: dict | None) -> VideoResult:
-        return VideoResult(video_paths=[], metadata={"error": "video generation not supported via webapi"})

@@ -15,6 +15,7 @@ app/api/admin/api_keys.py
 app/api/admin/auth.py
 app/api/admin/health.py
 app/api/admin/logs.py
+app/api/admin/mcp_tokens.py
 app/api/admin/models.py
 app/api/admin/packages.py
 app/api/admin/parity.py
@@ -49,6 +50,7 @@ app/schemas/openai.py
 app/storage/files.py
 app/utils/encryption.py
 app/utils/events.py
+app/utils/media.py
 app/utils/sse.py
 cli/main.py
 gemini_unified_gateway.egg-info/PKG-INFO

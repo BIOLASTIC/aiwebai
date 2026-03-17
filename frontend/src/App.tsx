@@ -12,6 +12,7 @@ import Analytics from './pages/Analytics'
 import Admin from './pages/Admin'
 import Health from './pages/Health'
 import McpSettings from './pages/McpSettings'
+import OpenClaw from './pages/OpenClaw'
 import Packages from './pages/Packages'
 import Features from './pages/Features'
 import Docs from './pages/Docs'
@@ -64,6 +65,7 @@ function App() {
             <Route path="admin" element={<Admin />} />
             <Route path="health" element={<Health />} />
             <Route path="mcp" element={<McpSettings />} />
+            <Route path="openclaw" element={<OpenClaw />} />
             <Route path="packages" element={<Packages />} />
             <Route path="features" element={<Features />} />
             <Route path="docs" element={<Docs />} />
