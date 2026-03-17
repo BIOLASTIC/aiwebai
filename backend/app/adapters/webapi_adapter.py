@@ -6,32 +6,111 @@ from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from backend.app.adapters.base import BaseAdapter
+from backend.app.config import settings
 from backend.app.schemas.native import ImageGenerationRequest, VideoResult
-from backend.app.utils.media import download_to_uploads
-from backend.app.schemas.openai import ChatCompletionChoice, ChatCompletionRequest, ChatCompletionResponse, ChatMessage
+from backend.app.schemas.openai import (
+    ChatCompletionChoice,
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatMessage,
+)
 
-KNOWN_WEBAPI_MODELS: List[Dict[str, Any]] = [
-    {"id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro", "family": "pro", "capabilities": {"chat": True, "thinking": True}},
-    {"id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash", "family": "flash", "capabilities": {"chat": True, "streaming": True}},
-    {"id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash", "family": "flash", "capabilities": {"chat": True, "streaming": True, "images": True}},
-    {"id": "gemini-2.0-flash-thinking-exp", "display_name": "Gemini Thinking", "family": "thinking", "capabilities": {"chat": True, "thinking": True}},
-    {"id": "gemini-research", "display_name": "Gemini Research", "family": "research", "capabilities": {"research": True}},
-]
-
+# ---------------------------------------------------------------------------
+# gemini-webapi Model enum import
+# ---------------------------------------------------------------------------
 try:
     from gemini_webapi import GeminiClient  # type: ignore
+    from gemini_webapi.constants import Model as GeminiModel  # type: ignore
+    from gemini_webapi.types.image import GeneratedImage  # type: ignore
 except Exception:  # pragma: no cover
     GeminiClient = None  # type: ignore
+    GeminiModel = None  # type: ignore
+    GeneratedImage = None  # type: ignore
+
+# ---------------------------------------------------------------------------
+# User-facing model IDs exposed by this adapter
+# ---------------------------------------------------------------------------
+KNOWN_WEBAPI_MODELS: List[Dict[str, Any]] = [
+    {
+        "id": "gemini-3.0-pro",
+        "display_name": "Gemini 3.0 Pro",
+        "family": "pro",
+        "capabilities": {"chat": True, "images": True, "image_edit": True, "thinking": True, "streaming": True},
+    },
+    {
+        "id": "gemini-3.0-flash",
+        "display_name": "Gemini 3.0 Flash",
+        "family": "flash",
+        "capabilities": {"chat": True, "images": True, "image_edit": True, "streaming": True},
+    },
+    {
+        "id": "gemini-3.0-flash-thinking",
+        "display_name": "Gemini 3.0 Flash Thinking",
+        "family": "thinking",
+        "capabilities": {"chat": True, "thinking": True, "streaming": True},
+    },
+]
+
+# ---------------------------------------------------------------------------
+# Map user-facing IDs → gemini-webapi internal Model enum values
+# Also includes legacy aliases so existing accounts keep working.
+# ---------------------------------------------------------------------------
+def _build_model_map() -> Dict[str, Any]:
+    if GeminiModel is None:
+        return {}
+    return {
+        # Current model IDs
+        "gemini-3.0-pro": GeminiModel.G_3_1_PRO,
+        "gemini-3.0-flash": GeminiModel.G_3_0_FLASH,
+        "gemini-3.0-flash-thinking": GeminiModel.G_3_0_FLASH_THINKING,
+        # Legacy aliases → map to closest current model
+        "gemini-2.5-pro": GeminiModel.G_3_1_PRO,
+        "gemini-2.5-flash": GeminiModel.G_3_0_FLASH,
+        "gemini-2.0-flash": GeminiModel.G_3_0_FLASH,
+        "gemini-2.0-flash-thinking-exp": GeminiModel.G_3_0_FLASH_THINKING,
+        "gemini-1.5-pro": GeminiModel.G_3_1_PRO,
+        "gemini-1.5-flash": GeminiModel.G_3_0_FLASH,
+    }
+
+
+_WEBAPI_MODEL_MAP: Dict[str, Any] = _build_model_map()
+
+# Models served only by mcpcli; never route to webapi for these
+_MCPCLI_ONLY_MODELS = {"imagen-3.0", "gemini-image-latest", "veo-2.0", "veo-pro", "lyria-1.0"}
+
+# Trigger words that cause Gemini to invoke ImageFX image generation
+_IMG_TRIGGERS = ("generate", "create", "draw", "make", "render", "produce", "paint", "design", "show me", "illustrate")
+
+
+def _uploads_dir() -> Path:
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    d = project_root / "uploads"
+    d.mkdir(exist_ok=True)
+    return d
+
+
+def _local_url(filename: str) -> str:
+    return f"http://192.168.88.81:{settings.API_PORT}/uploads/{filename}"
 
 
 class WebApiAdapter(BaseAdapter):
-    def __init__(self, secure_1psid: str | None = None, secure_1psidts: str | None = None, mock_mode: bool | None = None):
+    def __init__(
+        self,
+        secure_1psid: str | None = None,
+        secure_1psidts: str | None = None,
+        mock_mode: bool | None = None,
+    ):
         self._secure_1psid = secure_1psid
         self._secure_1psidts = secure_1psidts
         self.mock_mode = bool(mock_mode) if mock_mode is not None else not (secure_1psid and GeminiClient)
-        self.client = GeminiClient(secure_1psid, secure_1psidts) if (GeminiClient and secure_1psid) else None
+        self.client: Any = GeminiClient(secure_1psid, secure_1psidts) if (GeminiClient and secure_1psid) else None
         self._initialized = False
+        # chat_sessions keyed by "{session_id}:{model_id}" so different models get separate chats
         self.chat_sessions: Dict[str, Any] = {}
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
     async def init(self) -> None:
         if self.mock_mode or not self.client or self._initialized:
@@ -39,93 +118,201 @@ class WebApiAdapter(BaseAdapter):
         await self.client.init(timeout=30, auto_close=False, close_delay=300, auto_refresh=True)
         self._initialized = True
 
-    async def _get_chat_session(self, session_id: Optional[str] = None):
-        key = session_id or "default"
-        if key not in self.chat_sessions:
-            if self.mock_mode or not self.client:
-                raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
-            else:
-                self.chat_sessions[key] = self.client.start_chat()
-        return self.chat_sessions[key]
+    def _require_client(self) -> None:
+        if self.mock_mode or not self.client:
+            raise Exception(
+                "Account credentials are invalid or expired. "
+                "Please re-import your browser session in the Admin panel."
+            )
+
+    def _resolve_model(self, model_id: str | None) -> Any:
+        """Convert a user-facing model ID to a gemini-webapi Model enum value."""
+        if not model_id or GeminiModel is None:
+            return GeminiModel.UNSPECIFIED if GeminiModel else None
+        if model_id in _MCPCLI_ONLY_MODELS:
+            return GeminiModel.UNSPECIFIED if GeminiModel else None
+        return _WEBAPI_MODEL_MAP.get(model_id, GeminiModel.UNSPECIFIED if GeminiModel else None)
+
+    # ------------------------------------------------------------------
+    # Chat
+    # ------------------------------------------------------------------
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
+        self._require_client()
+        await self.init()
+
+        model_enum = self._resolve_model(request.model)
+        session_key = f"{request.user or 'default'}:{request.model or 'default'}"
+
+        if session_key not in self.chat_sessions:
+            kwargs: Dict[str, Any] = {}
+            if model_enum is not None:
+                kwargs["model"] = model_enum
+            self.chat_sessions[session_key] = self.client.start_chat(**kwargs)
+
+        session = self.chat_sessions[session_key]
         last_message = request.messages[-1].content if request.messages else ""
-        if self.mock_mode or not self.client:
-            raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
-        else:
-            await self.init()
-            session = await self._get_chat_session(request.user)
-            output = await session.send_message(last_message)
-            text = getattr(output, "text", str(output))
+        output = await session.send_message(last_message)
+        text = getattr(output, "text", str(output))
+
         return ChatCompletionResponse(
             id=f"chatcmpl-{uuid.uuid4()}",
             created=int(time.time()),
             model=request.model,
-            choices=[ChatCompletionChoice(index=0, message=ChatMessage(role="assistant", content=text), finish_reason="stop")],
+            choices=[
+                ChatCompletionChoice(
+                    index=0,
+                    message=ChatMessage(role="assistant", content=text),
+                    finish_reason="stop",
+                )
+            ],
             usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         )
 
     async def stream_chat(self, request: ChatCompletionRequest) -> AsyncGenerator[Dict[str, Any], None]:
-        last_message = request.messages[-1].content if request.messages else ""
+        self._require_client()
+        await self.init()
+
+        model_enum = self._resolve_model(request.model)
+        session_key = f"{request.user or 'default'}:{request.model or 'default'}"
+
+        if session_key not in self.chat_sessions:
+            kwargs: Dict[str, Any] = {}
+            if model_enum is not None:
+                kwargs["model"] = model_enum
+            self.chat_sessions[session_key] = self.client.start_chat(**kwargs)
+
+        session = self.chat_sessions[session_key]
         chunk_id = f"chatcmpl-{uuid.uuid4()}"
         created = int(time.time())
-        if self.mock_mode or not self.client:
-            raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
-        else:
-            await self.init()
-            session = await self._get_chat_session(request.user)
-            async for chunk in session.send_message_stream(last_message):
-                delta = getattr(chunk, "text_delta", None) or getattr(chunk, "text", "")
-                yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}]}
-        yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+        last_message = request.messages[-1].content if request.messages else ""
+
+        async for chunk in session.send_message_stream(last_message):
+            delta = getattr(chunk, "text_delta", None) or getattr(chunk, "text", "")
+            yield {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": request.model,
+                "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}],
+            }
+        yield {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": request.model,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        }
+
+    # ------------------------------------------------------------------
+    # Image generation
+    # ------------------------------------------------------------------
 
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
-        prompt = request.prompt.strip()
-        if self.mock_mode or not self.client:
-            raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
+        self._require_client()
         await self.init()
-        # Map our standard model IDs → webapi internal names; mcpcli-only models use default
-        _WEBAPI_MODEL_MAP: Dict[str, str] = {
-            "gemini-2.5-pro": "gemini-3.1-pro",
-            "gemini-2.5-flash": "gemini-3.0-flash",
-            "gemini-2.0-flash": "gemini-3.0-flash",
-            "gemini-2.0-flash-thinking-exp": "gemini-3.0-flash-thinking",
-        }
-        _MCPCLI_ONLY = {"imagen-3.0", "gemini-image-latest", "veo-2.0", "veo-pro"}
-        webapi_model: Optional[str] = None
-        if request.model and request.model not in _MCPCLI_ONLY:
-            webapi_model = _WEBAPI_MODEL_MAP.get(request.model)
-        kwargs: Dict[str, Any] = {}
-        if webapi_model:
-            kwargs["model"] = webapi_model
-        # Gemini web needs an explicit image generation instruction to trigger Imagen
-        _img_triggers = ("generate", "create", "draw", "make", "render", "produce", "paint", "design")
-        if not any(w in prompt.lower() for w in _img_triggers):
+
+        prompt = request.prompt.strip()
+        model_enum = self._resolve_model(request.model)
+
+        # Gemini needs explicit trigger words to invoke ImageFX (Imagen)
+        if not any(w in prompt.lower() for w in _IMG_TRIGGERS):
             gen_prompt = f"Generate an image of: {prompt}"
         else:
             gen_prompt = prompt
+
+        kwargs: Dict[str, Any] = {}
+        if model_enum is not None:
+            kwargs["model"] = model_enum
+
         output = await self.client.generate_content(gen_prompt, **kwargs)
         images = getattr(output, "images", []) or []
+
         urls = []
+        uploads = _uploads_dir()
+
         for image in images:
-            url = getattr(image, "url", None)
-            if url:
-                # Download locally to avoid cloud dependency
-                local_url = await download_to_uploads(url)
-                urls.append({"url": local_url})
+            try:
+                # Use the library's own save() which handles cookies for GeneratedImage
+                saved_path = await image.save(path=str(uploads), verbose=False)
+                if saved_path:
+                    filename = Path(saved_path).name
+                    urls.append({"url": _local_url(filename)})
+            except Exception:
+                # Fallback: download via raw URL (works for WebImage)
+                raw_url = getattr(image, "url", None)
+                if raw_url:
+                    from backend.app.utils.media import download_to_uploads
+                    local = await download_to_uploads(raw_url)
+                    urls.append({"url": local})
+
         if not urls:
             response_text = getattr(output, "text", "") or ""
-            if "not available" in response_text.lower() or "can't" in response_text.lower() or "cannot" in response_text.lower():
+            if any(w in response_text.lower() for w in ("not available", "can't", "cannot", "subscription", "upgrade")):
                 raise Exception(
                     "Image generation is not available for this Google account. "
                     "You likely need a Gemini Advanced subscription. "
-                    "Alternatively, run 'gemcli login' in the terminal to enable image generation via the mcpcli account."
+                    "Use the mcpcli backend instead (run 'gemcli login' in the terminal)."
                 )
             raise Exception(
                 "Gemini returned a response but no images were generated. "
-                "The prompt may have been blocked by safety filters, or image generation may not be available for this account."
+                "The prompt may have been blocked by safety filters, or image generation "
+                "may not be available for this account."
             )
+
         return {"created": int(time.time()), "data": urls}
+
+    # ------------------------------------------------------------------
+    # Image editing  (override base which delegates to generate_image)
+    # ------------------------------------------------------------------
+
+    async def edit_image(self, request: ImageGenerationRequest, reference_file: bytes | None = None) -> Dict[str, Any]:
+        self._require_client()
+        await self.init()
+
+        prompt = request.prompt.strip()
+        model_enum = self._resolve_model(request.model)
+
+        kwargs: Dict[str, Any] = {}
+        if model_enum is not None:
+            kwargs["model"] = model_enum
+
+        files: list[Any] | None = None
+        if reference_file:
+            import io
+            files = [io.BytesIO(reference_file)]
+
+        edit_prompt = prompt if any(w in prompt.lower() for w in ("edit", "change", "modify", "remove", "replace", "add", "adjust")) else f"Edit this image: {prompt}"
+        output = await self.client.generate_content(edit_prompt, files=files, **kwargs)
+        images = getattr(output, "images", []) or []
+
+        urls = []
+        uploads = _uploads_dir()
+
+        for image in images:
+            try:
+                saved_path = await image.save(path=str(uploads), verbose=False)
+                if saved_path:
+                    filename = Path(saved_path).name
+                    urls.append({"url": _local_url(filename)})
+            except Exception:
+                raw_url = getattr(image, "url", None)
+                if raw_url:
+                    from backend.app.utils.media import download_to_uploads
+                    local = await download_to_uploads(raw_url)
+                    urls.append({"url": local})
+
+        if not urls:
+            raise Exception(
+                "Image editing returned no results. "
+                "Ensure you have a Gemini Advanced subscription and that the reference image is valid."
+            )
+
+        return {"created": int(time.time()), "data": urls}
+
+    # ------------------------------------------------------------------
+    # Video generation
+    # ------------------------------------------------------------------
 
     async def generate_video(
         self,
@@ -135,35 +322,40 @@ class WebApiAdapter(BaseAdapter):
         reference_files: list[Path] | None,
         options: dict | None,
     ) -> VideoResult:
-        if self.mock_mode or not self.client:
-            raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
-        
+        self._require_client()
         await self.init()
-        output = await self.client.generate_content(prompt)
 
+        output = await self.client.generate_content(prompt)
         videos = getattr(output, "videos", []) or []
-        local_url_strings: list[str] = []
+        local_urls: list[str] = []
 
         for video in videos:
             url = getattr(video, "url", None)
             if url:
+                from backend.app.utils.media import download_to_uploads
                 local_url = await download_to_uploads(url)
-                local_url_strings.append(local_url)
+                local_urls.append(local_url)
 
-        if not local_url_strings:
-            raise Exception("Gemini returned a response but no video results were found. Note: Video generation is experimental in the Web interface.")
+        if not local_urls:
+            raise Exception(
+                "Gemini returned no video results. "
+                "Note: Video generation is experimental in the web interface."
+            )
 
-        # Store url string in metadata to avoid Path() mangling http:// into http:/
         return VideoResult(
-            video_paths=[Path(u) for u in local_url_strings],
-            metadata={"model": "gemini-2.0-flash", "url": local_url_strings[0]},
+            video_paths=[Path(u) for u in local_urls],
+            metadata={"model": model or "gemini-3.0-flash", "url": local_urls[0]},
         )
+
+    # ------------------------------------------------------------------
+    # Model listing & health
+    # ------------------------------------------------------------------
 
     async def list_models(self) -> List[Dict[str, Any]]:
         return KNOWN_WEBAPI_MODELS
 
     async def health_check(self) -> bool:
-        if self.mock_mode:
+        if self.mock_mode or not self.client:
             return False
         try:
             await self.init()

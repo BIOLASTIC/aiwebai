@@ -108,13 +108,49 @@ class AdapterRouter:
         await model_registry.discover_models()
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
-        adapter = self.get_best_adapter("chat", request.model)
-        return await adapter.chat_completion(request)
+        all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
+        # For mcpcli-only models, skip webapi adapters
+        mcpcli_only = {"imagen-3.0", "veo-2.0", "lyria-1.0"}
+        if request.model and request.model in mcpcli_only:
+            candidates = [a for a in all_adapters if isinstance(a, McpCliAdapter)] or all_adapters
+        else:
+            # Try all webapi adapters first (multi-account fallback for rate limits), then mcpcli
+            candidates = (
+                [a for a in all_adapters if isinstance(a, WebApiAdapter)]
+                + [a for a in all_adapters if isinstance(a, McpCliAdapter)]
+            ) or all_adapters
+
+        errors: Dict[str, str] = {}
+        for adapter in candidates:
+            try:
+                return await adapter.chat_completion(request)
+            except Exception as exc:
+                name = _ADAPTER_DISPLAY_NAMES.get(type(adapter), str(type(adapter)))
+                errors[name] = str(exc)
+        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
+        raise HTTPException(status_code=502, detail=f"No adapter could complete chat. {tried}")
 
     async def stream_chat(self, request: ChatCompletionRequest) -> AsyncGenerator[Dict[str, Any], None]:
-        adapter = self.get_best_adapter("chat", request.model)
-        async for chunk in adapter.stream_chat(request):
-            yield chunk
+        all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
+        mcpcli_only = {"imagen-3.0", "veo-2.0", "lyria-1.0"}
+        if request.model and request.model in mcpcli_only:
+            candidates = [a for a in all_adapters if isinstance(a, McpCliAdapter)] or all_adapters
+        else:
+            candidates = (
+                [a for a in all_adapters if isinstance(a, WebApiAdapter)]
+                + [a for a in all_adapters if isinstance(a, McpCliAdapter)]
+            ) or all_adapters
+
+        last_exc: Exception | None = None
+        for adapter in candidates:
+            try:
+                async for chunk in adapter.stream_chat(request):
+                    yield chunk
+                return  # success — stop trying other adapters
+            except Exception as exc:
+                last_exc = exc
+        if last_exc:
+            raise last_exc
 
     async def generate_image(self, request: ImageGenerationRequest, adapter: str | None = None) -> Dict[str, Any]:
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]

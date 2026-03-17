@@ -13,9 +13,16 @@ from backend.app.logging.structured import logger
 
 
 LATEST_ALIASES: Dict[str, str] = {
-    "gemini-pro-latest": "gemini-2.5-pro",
-    "gemini-flash-latest": "gemini-2.5-flash",
-    "gemini-thinking-latest": "gemini-2.0-flash-thinking-exp",
+    # Current model aliases
+    "gemini-pro-latest": "gemini-3.0-pro",
+    "gemini-flash-latest": "gemini-3.0-flash",
+    "gemini-thinking-latest": "gemini-3.0-flash-thinking",
+    # Legacy aliases (kept for backward compat)
+    "gemini-2.5-pro": "gemini-3.0-pro",
+    "gemini-2.5-flash": "gemini-3.0-flash",
+    "gemini-2.0-flash": "gemini-3.0-flash",
+    "gemini-2.0-flash-thinking-exp": "gemini-3.0-flash-thinking",
+    # mcpcli models
     "gemini-image-latest": "imagen-3.0",
     "gemini-video-latest": "veo-2.0",
     "gemini-music-latest": "lyria-1.0",

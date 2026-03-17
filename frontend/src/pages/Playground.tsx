@@ -78,7 +78,7 @@ const Playground = () => {
 
   // Default model per tool
   const DEFAULT_MODEL: Record<string, string> = {
-    chat: 'gemini-2.0-flash',
+    chat: 'gemini-3.0-flash',
     image: 'imagen-3.0',
     video: 'veo-2.0',
     music: 'lyria-1.0',
@@ -87,7 +87,7 @@ const Playground = () => {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [models, setModels] = useState<ModelItem[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<string>('auto')
-  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash')
+  const [selectedModel, setSelectedModel] = useState('gemini-3.0-flash')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [selectedAdapter, setSelectedAdapter] = useState<string>('auto')
 

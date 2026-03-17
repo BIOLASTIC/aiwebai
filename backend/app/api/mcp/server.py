@@ -21,16 +21,18 @@ from backend.app.api.openai.chat_completions import adapter_router
 @mcp.tool()
 async def chat(
     prompt: str,
+    model: Optional[str] = None,
     account_id: Optional[int] = None,
     adapter: Optional[str] = None,
 ) -> str:
     """Send a message to Gemini and get a response.
 
+    model: 'gemini-3.0-pro', 'gemini-3.0-flash', 'gemini-3.0-flash-thinking' — omit for auto.
     adapter: 'webapi' (gemini-webapi) or 'mcpcli' (gemini-web-mcp-cli) — omit for auto.
     account_id: ID of a specific configured account to use.
     """
     try:
-        model = "gemini-2.0-flash"
+        model = model or "gemini-3.0-flash"
         request = ChatCompletionRequest(
             model=model,
             messages=[ChatMessage(role="user", content=prompt)],
@@ -69,33 +71,86 @@ async def chat(
 @mcp.tool()
 async def generate_image(
     prompt: str,
+    model: Optional[str] = None,
     account_id: Optional[int] = None,
     adapter: Optional[str] = None,
 ) -> str:
     """Generate an image from a text prompt.
 
-    adapter: 'webapi' (gemini-webapi) or 'mcpcli' (gemini-web-mcp-cli) — omit for auto.
+    model: 'gemini-3.0-pro', 'gemini-3.0-flash' (webapi) or 'imagen-3.0' (mcpcli).
+    adapter: 'webapi' (gemini-webapi) or 'mcpcli' (gemini-web-mcp-cli) — omit for auto (mcpcli preferred).
     account_id: ID of a specific configured account to use.
     """
     try:
         from backend.app.schemas.native import ImageGenerationRequest
 
-        request = ImageGenerationRequest(prompt=prompt, account_id=account_id)
+        request = ImageGenerationRequest(prompt=prompt, model=model, account_id=account_id)
         response = await adapter_router.generate_image(request, adapter=adapter)
         data = response.get("data", [])
         if not data:
             return (
                 "Image generation returned no results. "
-                "Try specifying adapter='mcpcli' and ensure 'gemcli login' has been run, "
-                "or adapter='webapi' with a valid account."
+                "Try adapter='mcpcli' (run 'gemcli login' first) or adapter='webapi' with a valid account."
             )
-        return f"Image generated: {data[0]['url']}"
+        urls = [d["url"] for d in data]
+        return f"Image(s) generated:\n" + "\n".join(urls)
     except Exception as e:
         return (
             f"Image generation failed: {str(e)}. "
-            "Try specifying adapter='mcpcli' and running 'gemcli login' first, "
-            "or adapter='webapi' with a valid account."
+            "Try adapter='mcpcli' (run 'gemcli login' first) or adapter='webapi' (requires Gemini Advanced)."
         )
+
+
+@mcp.tool()
+async def edit_image(
+    prompt: str,
+    image_url: str,
+    model: Optional[str] = None,
+    account_id: Optional[int] = None,
+) -> str:
+    """Edit an existing image using a text prompt (webapi only).
+
+    prompt: Description of the edits to make.
+    image_url: URL of the image to edit (must be accessible from the server).
+    model: 'gemini-3.0-pro' or 'gemini-3.0-flash' — omit for auto.
+    account_id: ID of a specific webapi account to use.
+    """
+    try:
+        import httpx
+        from backend.app.schemas.native import ImageGenerationRequest
+        from backend.app.accounts.manager import account_manager
+        from backend.app.adapters.webapi_adapter import WebApiAdapter
+
+        # Download the reference image
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(image_url, timeout=30)
+            if resp.status_code != 200:
+                return f"Failed to download reference image: HTTP {resp.status_code}"
+            image_bytes = resp.content
+
+        # Find a webapi adapter
+        adapters = account_manager.get_all_adapters()
+        chosen = None
+        if account_id:
+            chosen = account_manager.get_adapter_for_account(account_id)
+        if chosen is None:
+            for a in adapters:
+                if isinstance(a, WebApiAdapter) and not a.mock_mode:
+                    chosen = a
+                    break
+
+        if chosen is None:
+            return "No valid webapi account available. Image editing requires a webapi account."
+
+        request = ImageGenerationRequest(prompt=prompt, model=model, account_id=account_id)
+        response = await chosen.edit_image(request, reference_file=image_bytes)
+        data = response.get("data", [])
+        if not data:
+            return "Image editing returned no results."
+        urls = [d["url"] for d in data]
+        return f"Edited image(s):\n" + "\n".join(urls)
+    except Exception as e:
+        return f"Image editing failed: {str(e)}"
 
 
 @mcp.tool()

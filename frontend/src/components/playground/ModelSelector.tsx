@@ -55,7 +55,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   accountProvider,
   accountCapabilities,
   models = [],
-  selectedModel = 'gemini-2.0-flash',
+  selectedModel = 'gemini-3.0-flash',
   onModelChange,
 }) => {
   const [filteredModels, setFilteredModels] = useState<ModelItem[]>([]);
@@ -95,9 +95,11 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
           // fallback: filter from provided models list by feature capability
           const fallback = models.filter((m) => {
             if (feature === 'image') {
-              // Only show dedicated image model (imagen-3.0) and flash models that support images
+              // imagen-3.0 (mcpcli), gemini-3.0-flash and gemini-3.0-pro (webapi) support images
               return (
                 m.provider_model_name.includes('imagen') ||
+                m.provider_model_name === 'gemini-3.0-flash' ||
+                m.provider_model_name === 'gemini-3.0-pro' ||
                 (m.provider_model_name.includes('flash') && !m.provider_model_name.includes('thinking'))
               );
             }

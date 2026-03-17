@@ -1,3 +1,15 @@
+### Fixes applied (March 17, 2026 - batch 9 — gemini-webapi full integration):
+- Updated webapi adapter: new models gemini-3.0-pro / gemini-3.0-flash / gemini-3.0-flash-thinking (mapping to internal Model enum G_3_1_PRO / G_3_0_FLASH / G_3_0_FLASH_THINKING)
+- Added legacy alias map so old model IDs (gemini-2.0-flash etc.) still route correctly
+- Fixed model-aware chat sessions: sessions now keyed by "{session_id}:{model_id}" so different models maintain separate context
+- Fixed image saving: uses GeneratedImage.save() with embedded cookies instead of unauthenticated download
+- Added edit_image() method to WebApiAdapter: passes reference file as bytes to generate_content(files=[...])
+- Added multi-account fallback: chat_completion and stream_chat now try ALL webapi accounts before falling back to mcpcli (handles rate limits gracefully)
+- Updated model registry aliases: gemini-pro-latest → gemini-3.0-pro, gemini-flash-latest → gemini-3.0-flash
+- Updated MCP server: chat tool accepts model parameter; generate_image accepts model; new edit_image MCP tool added (10 tools total)
+- Updated frontend default model: gemini-3.0-flash everywhere; ModelSelector image filter updated to include gemini-3.0-flash/pro
+- Verified: all 3 new models work in GUI, API, and Swagger UI; MCP shows 10 tools; mcpcli imagen-3.0 generates real images
+
 ### Fixes applied (March 17, 2026 - batch 8):
 - Fixed mcpcli adapter profile routing: when no credentials stored for mcpcli account, adapter was passing `--profile "Test MCPCLI"` to gemcli but that profile had no auth; fixed to only pass `--profile` when credentials are explicitly stored, falling back to the authenticated default profile
 - Image generation now fully working end-to-end: gemcli uses default profile (cookies present), generates real PNG images (1408x768), stores in uploads/ and returns HTTP URL
