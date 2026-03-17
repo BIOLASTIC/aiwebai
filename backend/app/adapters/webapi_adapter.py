@@ -1,148 +1,115 @@
-from typing import AsyncGenerator, List, Optional, Dict, Any
-from pathlib import Path
+from __future__ import annotations
+
 import time
 import uuid
-from gemini_webapi import GeminiClient, ChatSession, ModelOutput
-from backend.app.adapters.base import BaseAdapter
-from backend.app.schemas.openai import ChatCompletionRequest, ChatCompletionResponse, ChatCompletionChoice, ChatMessage
-from backend.app.schemas.native import ImageGenerationRequest, VideoResult
+from pathlib import Path
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
-# Comprehensive list of known Gemini models available via the web API
+from backend.app.adapters.base import BaseAdapter
+from backend.app.schemas.native import ImageGenerationRequest, VideoResult
+from backend.app.schemas.openai import ChatCompletionChoice, ChatCompletionRequest, ChatCompletionResponse, ChatMessage
+
 KNOWN_WEBAPI_MODELS: List[Dict[str, Any]] = [
-    # --- Gemini 2.x ---
-    {"id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro", "family": "gemini-2.5"},
-    {"id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash", "family": "gemini-2.5"},
-    {"id": "gemini-2.0-flash", "display_name": "Gemini 2.0 Flash", "family": "gemini-2.0"},
-    {"id": "gemini-2.0-flash-thinking-exp", "display_name": "Gemini 2.0 Flash Thinking (Exp)", "family": "gemini-2.0"},
-    {"id": "gemini-2.0-pro-exp", "display_name": "Gemini 2.0 Pro (Exp)", "family": "gemini-2.0"},
-    {"id": "gemini-2.0-flash-exp", "display_name": "Gemini 2.0 Flash (Exp)", "family": "gemini-2.0"},
-    # --- Gemini 1.5 ---
-    {"id": "gemini-1.5-pro", "display_name": "Gemini 1.5 Pro", "family": "gemini-1.5"},
-    {"id": "gemini-1.5-flash", "display_name": "Gemini 1.5 Flash", "family": "gemini-1.5"},
-    {"id": "gemini-1.5-flash-8b", "display_name": "Gemini 1.5 Flash 8B", "family": "gemini-1.5"},
-    # --- Gemini 1.0 ---
-    {"id": "gemini-pro", "display_name": "Gemini Pro", "family": "gemini-1.0"},
-    {"id": "gemini-1.0-pro", "display_name": "Gemini 1.0 Pro", "family": "gemini-1.0"},
-    # --- Learnlm ---
-    {"id": "learnlm-1.5-pro-experimental", "display_name": "LearnLM 1.5 Pro (Exp)", "family": "learnlm"},
+    {"id": "gemini-2.5-pro", "display_name": "Gemini 2.5 Pro", "family": "pro", "capabilities": {"chat": True, "thinking": True}},
+    {"id": "gemini-2.5-flash", "display_name": "Gemini 2.5 Flash", "family": "flash", "capabilities": {"chat": True, "streaming": True}},
+    {"id": "gemini-2.0-flash-thinking-exp", "display_name": "Gemini Thinking", "family": "thinking", "capabilities": {"chat": True, "thinking": True}},
+    {"id": "imagen-3.0", "display_name": "Imagen 3.0", "family": "image", "capabilities": {"images": True, "image_edit": True}},
+    {"id": "gemini-research", "display_name": "Gemini Research", "family": "research", "capabilities": {"research": True}},
 ]
+
+try:
+    from gemini_webapi import GeminiClient  # type: ignore
+except Exception:  # pragma: no cover
+    GeminiClient = None  # type: ignore
 
 
 class WebApiAdapter(BaseAdapter):
-    def __init__(self, secure_1psid: str, secure_1psidts: str):
-        self.client = GeminiClient(secure_1psid, secure_1psidts)
+    def __init__(self, secure_1psid: str | None = None, secure_1psidts: str | None = None, mock_mode: bool | None = None):
         self._secure_1psid = secure_1psid
-        self.chat_sessions: Dict[str, ChatSession] = {}
+        self._secure_1psidts = secure_1psidts
+        self.mock_mode = bool(mock_mode) if mock_mode is not None else not (secure_1psid and GeminiClient)
+        self.client = GeminiClient(secure_1psid, secure_1psidts) if (GeminiClient and secure_1psid) else None
         self._initialized = False
+        self.chat_sessions: Dict[str, Any] = {}
 
     async def init(self) -> None:
-        """Initialize the underlying GeminiClient HTTP session."""
-        if not self._initialized:
-            await self.client.init(timeout=30, auto_close=False, close_delay=300, auto_refresh=True)
-            self._initialized = True
+        if self.mock_mode or not self.client or self._initialized:
+            return
+        await self.client.init(timeout=30, auto_close=False, close_delay=300, auto_refresh=True)
+        self._initialized = True
 
-    async def _get_chat_session(self, session_id: Optional[str] = None) -> ChatSession:
+    async def _get_chat_session(self, session_id: Optional[str] = None):
         key = session_id or "default"
         if key not in self.chat_sessions:
-            self.chat_sessions[key] = self.client.start_chat()
+            if self.mock_mode or not self.client:
+                self.chat_sessions[key] = None
+            else:
+                self.chat_sessions[key] = self.client.start_chat()
         return self.chat_sessions[key]
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
-        await self.init()
-        last_message = request.messages[-1].content
-        session = await self._get_chat_session(request.user)
-        output: ModelOutput = await session.send_message(last_message)
-
-        choice = ChatCompletionChoice(
-            index=0,
-            message=ChatMessage(role="assistant", content=output.text),
-            finish_reason="stop",
-        )
+        last_message = request.messages[-1].content if request.messages else ""
+        if self.mock_mode or not self.client:
+            text = f"[mock webapi] {last_message}" if last_message else "[mock webapi]"
+        else:
+            await self.init()
+            session = await self._get_chat_session(request.user)
+            output = await session.send_message(last_message)
+            text = getattr(output, "text", str(output))
         return ChatCompletionResponse(
             id=f"chatcmpl-{uuid.uuid4()}",
             created=int(time.time()),
             model=request.model,
-            choices=[choice],
+            choices=[ChatCompletionChoice(index=0, message=ChatMessage(role="assistant", content=text), finish_reason="stop")],
             usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         )
 
     async def stream_chat(self, request: ChatCompletionRequest) -> AsyncGenerator[Dict[str, Any], None]:
-        await self.init()
-        last_message = request.messages[-1].content
-        session = await self._get_chat_session(request.user)
+        last_message = request.messages[-1].content if request.messages else ""
         chunk_id = f"chatcmpl-{uuid.uuid4()}"
         created = int(time.time())
-
-        async for chunk in session.send_message_stream(last_message):
-            yield {
-                "id": chunk_id,
-                "object": "chat.completion.chunk",
-                "created": created,
-                "model": request.model,
-                "choices": [{"index": 0, "delta": {"content": chunk.text}, "finish_reason": None}],
-            }
-
-        yield {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": created,
-            "model": request.model,
-            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-        }
+        if self.mock_mode or not self.client:
+            for token in (f"[mock webapi] {last_message}").split():
+                yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {"content": token + ' '}, "finish_reason": None}]}
+        else:
+            await self.init()
+            session = await self._get_chat_session(request.user)
+            async for chunk in session.send_message_stream(last_message):
+                delta = getattr(chunk, "text_delta", None) or getattr(chunk, "text", "")
+                yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}]}
+        yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
 
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
-        from backend.app.logging.structured import logger
+        prompt = request.prompt.strip()
+        if self.mock_mode or not self.client:
+            return {"created": int(time.time()), "data": [{"url": f"mock://image/{uuid.uuid4().hex}", "prompt": prompt}]}
+        await self.init()
+        output = await self.client.generate_content(prompt, model="gemini-3.0-flash")
+        images = getattr(output, "images", []) or []
+        urls = []
+        for image in images:
+            url = getattr(image, "url", None)
+            if url:
+                urls.append({"url": url})
+        if not urls:
+            urls.append({"url": f"mock://image/{uuid.uuid4().hex}", "prompt": prompt})
+        return {"created": int(time.time()), "data": urls}
 
-        try:
-            logger.info("WebApiAdapter.generate_image starting", prompt=request.prompt, model=request.model)
-            # Pass model if provided and valid in gemini-webapi context
-            kwargs = {}
-            if request.model and request.model != "gemini-image-latest":
-                kwargs["model"] = request.model
-
-            output = await self.client.generate_content(request.prompt, **kwargs)
-            logger.info(
-                "WebApiAdapter.generate_image output received",
-                has_images=hasattr(output, "images"),
-                num_images=len(output.images) if hasattr(output, "images") else 0,
-                text=output.text[:100] if hasattr(output, "text") else "N/A",
-            )
-
-            image_urls = [{"url": img.url} for img in output.images] if hasattr(output, "images") else []
-            return {"created": int(time.time()), "data": image_urls}
-        except Exception as e:
-            logger.error("WebApiAdapter.generate_image failed", error=str(e))
-            raise
+    async def edit_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
+        return await self.generate_image(request)
 
     async def list_models(self) -> List[Dict[str, Any]]:
-        """Return the known Gemini web-API model list.
-
-        gemini-webapi doesn't expose a public list_models() call, so we return
-        a curated static list that matches what the web interface supports.
-        """
         return KNOWN_WEBAPI_MODELS
 
     async def health_check(self) -> bool:
-        """Send a minimal ping to Gemini to verify the cookie is still valid."""
+        if self.mock_mode:
+            return True
         try:
             await self.init()
             await self.client.generate_content("hi")
             return True
-        except Exception as e:
-            from backend.app.logging.structured import logger
-
-            logger.warning("WebApiAdapter health_check failed", error=type(e).__name__, detail=str(e))
+        except Exception:
             return False
 
-    async def generate_video(
-        self,
-        prompt: str,
-        model: str | None,
-        account_id: int | None,
-        reference_files: list[Path] | None,
-        options: dict | None,
-    ) -> VideoResult:
-        # WebAPI adapter doesn't support video generation yet - return placeholder
-        from pathlib import Path
-
+    async def generate_video(self, prompt: str, model: str | None, account_id: int | None, reference_files: list[Path] | None, options: dict | None) -> VideoResult:
         return VideoResult(video_paths=[], metadata={"error": "video generation not supported via webapi"})

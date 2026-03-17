@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 class Token(BaseModel):
@@ -11,7 +11,7 @@ class Token(BaseModel):
     token_type: str
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: str
     role: str
     status: str
 
