@@ -90,7 +90,7 @@ def _uploads_dir() -> Path:
 
 
 def _local_url(filename: str) -> str:
-    return f"http://192.168.88.81:{settings.API_PORT}/uploads/{filename}"
+    return f"/uploads/{filename}"
 
 
 class WebApiAdapter(BaseAdapter):

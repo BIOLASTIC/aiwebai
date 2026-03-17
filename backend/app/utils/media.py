@@ -42,7 +42,7 @@ async def download_to_uploads(url: str) -> str:
                 f.write(response.content)
             
             # Return the local URL
-            return f"http://192.168.88.81:{settings.API_PORT}/uploads/{filename}"
+            return f"/uploads/{filename}"
     except Exception as e:
         print(f"Error downloading media: {e}")
         return url

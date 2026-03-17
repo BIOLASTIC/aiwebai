@@ -77,9 +77,8 @@ class McpCliAdapter(BaseAdapter):
             # Move the file
             shutil.copy2(str(source_path), str(dest_path))
             
-            # Return the full URL
-            from backend.app.config import settings
-            return f"http://192.168.88.81:{settings.API_PORT}/uploads/{dest_filename}"
+            # Return a root-relative URL so it works from any host/IP
+            return f"/uploads/{dest_filename}"
         except Exception as e:
             print(f"Error moving file to uploads: {e}")
             return source_path_str

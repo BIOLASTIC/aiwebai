@@ -49,8 +49,8 @@ async def run_task_background(job_id: int, task_type: str, request_data: dict):
             else:
                 raise ValueError(f"Unknown task type: {task_type}")
             
-            # Final validation: Ensure the result is a web link, not an error string
-            if not str(result).startswith('http'):
+            # Final validation: Ensure the result is a valid URL (absolute or root-relative)
+            if not (str(result).startswith('http') or str(result).startswith('/')):
                 raise ValueError(f"Generation failed to produce a valid URL. Internal Error: {result}")
                 
             await JobManager.update_job(db, job_id, "completed", 1.0, result_url=result)

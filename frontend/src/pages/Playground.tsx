@@ -147,9 +147,17 @@ const Playground = () => {
         const r = await axios.get(`${API_BASE}/native/tasks/${jobId}`, { headers })
         if (r.data.status === 'completed') {
           clearInterval(iv)
+          const rawUrl: string | undefined = r.data.result_url
+          // Resolve root-relative URLs to absolute using the API base, and
+          // drop any value that isn't a valid URL (guards against old error strings)
+          const imageUrl = rawUrl?.startsWith('/')
+            ? `${API_BASE}${rawUrl}`
+            : rawUrl?.startsWith('http')
+            ? rawUrl
+            : undefined
           updateLastAssistant(chatId, {
             content: `${type.charAt(0).toUpperCase() + type.slice(1)} generation complete.`,
-            imageUrl: r.data.result_url,
+            imageUrl,
           })
         } else if (r.data.status === 'failed') {
           clearInterval(iv)
