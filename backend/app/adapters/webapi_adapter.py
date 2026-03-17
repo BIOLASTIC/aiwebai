@@ -42,7 +42,7 @@ class WebApiAdapter(BaseAdapter):
         key = session_id or "default"
         if key not in self.chat_sessions:
             if self.mock_mode or not self.client:
-                self.chat_sessions[key] = None
+                raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
             else:
                 self.chat_sessions[key] = self.client.start_chat()
         return self.chat_sessions[key]
@@ -50,7 +50,7 @@ class WebApiAdapter(BaseAdapter):
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         last_message = request.messages[-1].content if request.messages else ""
         if self.mock_mode or not self.client:
-            text = f"[mock webapi] {last_message}" if last_message else "[mock webapi]"
+                raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
         else:
             await self.init()
             session = await self._get_chat_session(request.user)
@@ -69,20 +69,17 @@ class WebApiAdapter(BaseAdapter):
         chunk_id = f"chatcmpl-{uuid.uuid4()}"
         created = int(time.time())
         if self.mock_mode or not self.client:
-            for token in (f"[mock webapi] {last_message}").split():
-                yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {"content": token + ' '}, "finish_reason": None}]}
+                raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
         else:
             await self.init()
             session = await self._get_chat_session(request.user)
             async for chunk in session.send_message_stream(last_message):
                 delta = getattr(chunk, "text_delta", None) or getattr(chunk, "text", "")
-                yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}]}
-        yield {"id": chunk_id, "object": "chat.completion.chunk", "created": created, "model": request.model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
 
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
         prompt = request.prompt.strip()
         if self.mock_mode or not self.client:
-            return {"created": int(time.time()), "data": [{"url": f"mock://image/{uuid.uuid4().hex}", "prompt": prompt}]}
+                raise Exception("Account credentials are invalid or expired. Please re-import your browser session in the Admin panel.")
         await self.init()
         output = await self.client.generate_content(prompt, model="gemini-3.0-flash")
         images = getattr(output, "images", []) or []
@@ -92,7 +89,7 @@ class WebApiAdapter(BaseAdapter):
             if url:
                 urls.append({"url": url})
         if not urls:
-            urls.append({"url": f"mock://image/{uuid.uuid4().hex}", "prompt": prompt})
+            raise Exception("Gemini returned a response but no images were found. This usually happens if the prompt was blocked by safety filters.")
         return {"created": int(time.time()), "data": urls}
 
     async def edit_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
@@ -103,7 +100,7 @@ class WebApiAdapter(BaseAdapter):
 
     async def health_check(self) -> bool:
         if self.mock_mode:
-            return True
+            return False
         try:
             await self.init()
             await self.client.generate_content("hi")

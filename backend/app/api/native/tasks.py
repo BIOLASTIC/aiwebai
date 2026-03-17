@@ -9,6 +9,7 @@ from backend.app.db.engine import AsyncSessionLocal, get_db
 from backend.app.db.models import Job, User
 from backend.app.jobs.manager import JobManager
 from backend.app.schemas.native import ImageGenerationRequest
+from backend.app.adapters.router import adapter_router
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/native/tasks", tags=["native-tasks"])
@@ -30,19 +31,13 @@ async def run_task_background(job_id: int, task_type: str, request_data: dict):
         account_id = request_data.get("account_id")
         try:
             if task_type == "video":
-                from backend.app.adapters.mcpcli_adapter import McpCliAdapter
-                adapter = McpCliAdapter()
-                reference_files = [Path(ref) for ref in reference_file_ids]
-                result_obj = await adapter.generate_video(prompt, model=model, account_id=account_id, reference_files=reference_files, options={})
-                result = str(result_obj.video_paths[0]) if result_obj.video_paths else ""
+                res = await adapter_router.generate_video(prompt, model=model, account_id=account_id, reference_files=[Path(ref) for ref in reference_file_ids], options={})
+                result = str(res.video_paths[0]) if res.video_paths else ""
             elif task_type == "music":
-                from backend.app.adapters.mcpcli_adapter import McpCliAdapter
-                result = await McpCliAdapter().generate_music(prompt)
+                result = await adapter_router.generate_music(prompt)
             elif task_type == "research":
-                from backend.app.adapters.mcpcli_adapter import McpCliAdapter
-                result = await McpCliAdapter().deep_research(prompt)
+                result = await adapter_router.generate_research(prompt)
             elif task_type == "image":
-                from backend.app.api.openai.chat_completions import adapter_router
                 res = await adapter_router.generate_image(ImageGenerationRequest(prompt=prompt, model=model, reference_file_ids=reference_file_ids, account_id=account_id))
                 data = res.get("data", [])
                 if not data:

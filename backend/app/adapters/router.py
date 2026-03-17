@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from typing import Any, AsyncGenerator, Dict
+from typing import Any, AsyncGenerator, Dict, List, Optional
+from pathlib import Path
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -54,10 +55,13 @@ class AdapterRouter:
             yield chunk
 
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
+        if request.account_id:
+            adapter = account_manager.get_adapter_for_account(request.account_id)
+            if adapter:
+                return await adapter.generate_image(request)
+        
         last_error = None
         for adapter in [a for a in account_manager.get_all_adapters()] or [self.mock_adapter]:
-            if not isinstance(adapter, (WebApiAdapter, McpCliAdapter)):
-                continue
             try:
                 result = await adapter.generate_image(request)
                 if result.get("data"):
@@ -65,8 +69,20 @@ class AdapterRouter:
             except Exception as exc:
                 last_error = exc
         if last_error:
-            raise HTTPException(status_code=500, detail=str(last_error))
+            raise last_error
         return {"created": int(time.time()), "data": []}
+
+    async def generate_video(self, prompt: str, model: str | None, account_id: int | None, reference_files: list[Path] | None, options: dict | None):
+        adapter = self.get_best_adapter("video")
+        return await adapter.generate_video(prompt, model, account_id, reference_files, options)
+
+    async def generate_music(self, prompt: str) -> str:
+        adapter = self.get_best_adapter("music")
+        return await adapter.generate_music(prompt)
+
+    async def generate_research(self, prompt: str) -> str:
+        adapter = self.get_best_adapter("research")
+        return await adapter.deep_research(prompt)
 
 
 adapter_router = AdapterRouter()
