@@ -312,12 +312,7 @@ const Playground = () => {
           />
 
           {['chat', 'image', 'video'].includes(selectedTool) && (
-            <ModelSelector 
-              feature={selectedTool} 
-              models={models}
-              selectedModel={selectedModel}
-              onModelChange={setSelectedModel}
-            />
+            <ModelSelector feature={selectedTool} accountId={selectedAccountId} models={models} selectedModel={selectedModel} onModelChange={setSelectedModel} />
           )}
           
           {['image', 'video'].includes(selectedTool) && (
