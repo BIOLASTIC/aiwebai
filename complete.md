@@ -191,7 +191,7 @@
 - **MCP Server:** http://0.0.0.0:6403 (Model Context Protocol)
 - **Admin Email:** admin@local.host
 - **Admin Password:** 111111
-- **Global API Key:** sk-pXHS7Y5hP2f-6EEFHn_pVAUm_5mtFZmG3s43e38SbYc
+- **Global API Key:** sk-example-fake-key-for-demo-purposes-only
 - **System Status:** All services running and operational
 - **Database:** SQLite (gemini_gateway.db)
 - **Accounts Loaded:** 4 Gemini accounts validated and ready
@@ -380,7 +380,7 @@ All features from the original Implenent.md plan have been successfully implemen
 ### Credentials:
 - Username / Email: admin@local.host
 - Password: 111111
-- Global Auth API Key: sk-pXHS7Y5hP2f-6EEFHn_pVAUm_5mtFZmG3s43e38SbYc
+- Global Auth API Key: sk-example-fake-key-for-demo-purposes-only
 
 ### System Status:
 ✅ **100% Complete** - All planned features implemented and verified working

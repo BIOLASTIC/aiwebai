@@ -1,0 +1,8 @@
+# Cloudflare Tunnel Configuration for Gemini Unified Gateway Frontend
+tunnel: gemini-frontend
+credentials-file: /Users/biolasti/.cloudflared/gemini-frontend.json
+
+ingress:
+  - hostname: gemini-admin.biolastic.co.in
+    service: http://localhost:6401
+  - service: http_status:404
