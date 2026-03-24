@@ -98,9 +98,9 @@ start_prod() {
     fi
     
     echo "Production mode started."
-    echo("Frontend: http://0.0.0.0:6401")
-    echo("Backend API: http://0.0.0.0:6400")
-    echo("Swagger Docs: http://0.0.0.0:6400/docs")
+    echo "Frontend: http://0.0.0.0:6401"
+    echo "Backend API: http://0.0.0.0:6400"
+    echo "Swagger Docs: http://0.0.0.0:6400/docs"
     
     # Check if Cloudflare tunnels are running and start them if needed
     if [ -f "scripts/cloudflared-backend.yml" ] || [ -f "scripts/cloudflared-frontend.yml" ]; then

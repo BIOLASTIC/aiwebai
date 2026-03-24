@@ -8,15 +8,15 @@
 #
 # Requirements:
 #   - curl, jq installed
-#   - Backend running at http://192.168.88.81:6400
+#   - Backend running at http://0.0.0.0:6400
 #   - gemcli installed (optional — skipped if not found)
 # =============================================================================
 
 set -euo pipefail
 
-BASE_URL="http://192.168.88.81:6400"
-ADMIN_EMAIL="admin@local"
-ADMIN_PASS="admin123"
+BASE_URL="http://0.0.0.0:6400"
+ADMIN_EMAIL="admin@local.host"
+ADMIN_PASS="111111"
 IMAGE_PROMPT="a red apple on a white table"
 VIDEO_PROMPT="a cat walking through a garden"
 IMAGE_MODEL="imagen-3.0"

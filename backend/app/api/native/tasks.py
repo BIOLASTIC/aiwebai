@@ -40,6 +40,21 @@ class TaskRequest(BaseModel):
     adapter: Optional[str] = None  # "webapi" or "mcpcli" or None (auto)
 
 
+async def _resolve_reference_paths(file_ids: list[str]) -> list[Path]:
+    """Resolve file IDs to absolute local storage paths."""
+    if not file_ids:
+        return []
+    storage = FileStorage(base_dir=BASE_DIR / "uploads")
+    paths = []
+    for file_id in file_ids:
+        try:
+            meta = storage.get_metadata(file_id)
+            paths.append(Path(meta.storage_path))
+        except Exception:
+            continue
+    return paths
+
+
 async def run_task_background(job_id: int, task_type: str, request_data: dict):
     async with AsyncSessionLocal() as db:
         await JobManager.update_job(db, job_id, "processing", 0.1)
@@ -50,7 +65,9 @@ async def run_task_background(job_id: int, task_type: str, request_data: dict):
         adapter = request_data.get("adapter")
         try:
             if task_type == "video":
-                res = await adapter_router.generate_video(prompt, model=model, account_id=account_id, reference_files=[Path(ref) for ref in reference_file_ids], options={}, adapter=adapter)
+                ref_paths = await _resolve_reference_paths(reference_file_ids)
+                res = await adapter_router.generate_video(prompt, model=model, account_id=account_id, reference_files=ref_paths, options={}, adapter=adapter)
+
                 # Prefer the url from metadata to avoid Path() mangling http:// into http:/
                 result = res.metadata.get("url", "") or (str(res.video_paths[0]) if res.video_paths else "")
             elif task_type == "music":

@@ -12,7 +12,7 @@ async def test_files_upload_persists():
         resp = await ac.post(
             "/v1/files",
             files={"file": ("ref.png", b"abc", "image/png")},
-            headers={"X-API-Key": "sk-pXHS7Y5hP2f-6EEFHn_pVAUm_5mtFZmG3s43e38SbYc"},
+            headers={"X-API-Key": "sk-example-fake-key-for-demo-purposes-only"},
         )
         assert resp.status_code == 200
         body = resp.json()

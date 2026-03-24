@@ -51,6 +51,7 @@ KNOWN_WEBAPI_MODELS: List[Dict[str, Any]] = [
     },
 ]
 
+
 # ---------------------------------------------------------------------------
 # Map user-facing IDs → gemini-webapi internal Model enum values
 # Also includes legacy aliases so existing accounts keep working.
@@ -108,6 +109,12 @@ class WebApiAdapter(BaseAdapter):
         # chat_sessions keyed by "{session_id}:{model_id}" so different models get separate chats
         self.chat_sessions: Dict[str, Any] = {}
 
+    def _resolve_model(self, model_id: str | None) -> Any:
+        """Resolve user-facing model ID to gemini-webapi internal Model enum."""
+        if not model_id:
+            return None
+        return _WEBAPI_MODEL_MAP.get(model_id)
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -128,19 +135,10 @@ class WebApiAdapter(BaseAdapter):
             raise
 
     def _require_client(self) -> None:
-        if self.mock_mode or not self.client:
+        if not self.mock_mode and not self.client:
             raise Exception(
-                "Account credentials are invalid or expired. "
-                "Please re-import your browser session in the Admin panel."
+                "Account credentials are invalid or expired. Please re-import your browser session in the Admin panel."
             )
-
-    def _resolve_model(self, model_id: str | None) -> Any:
-        """Convert a user-facing model ID to a gemini-webapi Model enum value."""
-        if not model_id or GeminiModel is None:
-            return GeminiModel.UNSPECIFIED if GeminiModel else None
-        if model_id in _MCPCLI_ONLY_MODELS:
-            return GeminiModel.UNSPECIFIED if GeminiModel else None
-        return _WEBAPI_MODEL_MAP.get(model_id, GeminiModel.UNSPECIFIED if GeminiModel else None)
 
     # ------------------------------------------------------------------
     # Chat
@@ -148,6 +146,24 @@ class WebApiAdapter(BaseAdapter):
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         self._require_client()
+        if self.mock_mode:
+            return ChatCompletionResponse(
+                id=f"chatcmpl-{uuid.uuid4()}",
+                created=int(time.time()),
+                model=request.model,
+                choices=[
+                    ChatCompletionChoice(
+                        index=0,
+                        message=ChatMessage(
+                            role="assistant",
+                            content=f"MOCK RESPONSE: I am {request.model} running in mock mode. How can I help you with your Paperclip work today?",
+                        ),
+                        finish_reason="stop",
+                    )
+                ],
+                usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+            )
+
         await self.init()
 
         model_enum = self._resolve_model(request.model)
@@ -180,6 +196,26 @@ class WebApiAdapter(BaseAdapter):
 
     async def stream_chat(self, request: ChatCompletionRequest) -> AsyncGenerator[Dict[str, Any], None]:
         self._require_client()
+        if self.mock_mode:
+            chunk_id = f"chatcmpl-{uuid.uuid4()}"
+            created = int(time.time())
+            content = f"MOCK STREAM: I am {request.model}."
+            yield {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": request.model,
+                "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}],
+            }
+            yield {
+                "id": chunk_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": request.model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            return
+
         await self.init()
 
         model_enum = self._resolve_model(request.model)
@@ -219,6 +255,12 @@ class WebApiAdapter(BaseAdapter):
 
     async def generate_image(self, request: ImageGenerationRequest) -> Dict[str, Any]:
         self._require_client()
+        if self.mock_mode:
+            return {
+                "created": int(time.time()),
+                "data": [{"url": "https://placehold.co/1024x1024/png?text=Mock+Image+for+" + request.prompt[:20]}],
+            }
+
         await self.init()
 
         prompt = request.prompt.strip()
@@ -236,16 +278,14 @@ class WebApiAdapter(BaseAdapter):
             kwargs["model"] = GeminiModel.UNSPECIFIED
 
         import asyncio
+
         try:
             output = await asyncio.wait_for(
                 self.client.generate_content(gen_prompt, **kwargs),
                 timeout=90,
             )
         except asyncio.TimeoutError:
-            raise Exception(
-                "Gemini image generation timed out (90s). "
-                "Try again or switch to the mcpcli backend."
-            )
+            raise Exception("Gemini image generation timed out (90s). Try again or switch to the mcpcli backend.")
         images = getattr(output, "images", []) or []
 
         urls = []
@@ -263,20 +303,36 @@ class WebApiAdapter(BaseAdapter):
                 raw_url = getattr(image, "url", None)
                 if raw_url:
                     from backend.app.utils.media import download_to_uploads
+
                     local = await download_to_uploads(raw_url)
                     urls.append({"url": local})
 
         if not urls:
             response_text = getattr(output, "text", "") or ""
             rlt = response_text.lower()
-            if any(w in rlt for w in (
-                "not available", "can't generate", "cannot generate",
-                "subscription", "upgrade", "advanced", "premium",
-                "gemini advanced", "i'm not able to generate", "i am not able to generate",
-                "i can't create", "i cannot create", "unable to generate", "unable to create",
-                "don't have the ability", "do not have the ability",
-                "not designed to generate images", "can't directly generate",
-            )):
+            if any(
+                w in rlt
+                for w in (
+                    "not available",
+                    "can't generate",
+                    "cannot generate",
+                    "subscription",
+                    "upgrade",
+                    "advanced",
+                    "premium",
+                    "gemini advanced",
+                    "i'm not able to generate",
+                    "i am not able to generate",
+                    "i can't create",
+                    "i cannot create",
+                    "unable to generate",
+                    "unable to create",
+                    "don't have the ability",
+                    "do not have the ability",
+                    "not designed to generate images",
+                    "can't directly generate",
+                )
+            ):
                 raise Exception(
                     "Image generation is not available for this Google account. "
                     "You likely need a Gemini Advanced subscription. "
@@ -300,6 +356,12 @@ class WebApiAdapter(BaseAdapter):
 
     async def edit_image(self, request: ImageGenerationRequest, reference_file: bytes | None = None) -> Dict[str, Any]:
         self._require_client()
+        if self.mock_mode:
+            return {
+                "created": int(time.time()),
+                "data": [{"url": "https://placehold.co/1024x1024/png?text=Mock+Edited+Image"}],
+            }
+
         await self.init()
 
         prompt = request.prompt.strip()
@@ -312,10 +374,27 @@ class WebApiAdapter(BaseAdapter):
         files: list[Any] | None = None
         if reference_file:
             import io
+
             files = [io.BytesIO(reference_file)]
 
-        _EDIT_WORDS = ("edit", "change", "modify", "remove", "replace", "add", "adjust",
-                       "make", "turn", "convert", "apply", "color", "black", "white", "blur", "crop")
+        _EDIT_WORDS = (
+            "edit",
+            "change",
+            "modify",
+            "remove",
+            "replace",
+            "add",
+            "adjust",
+            "make",
+            "turn",
+            "convert",
+            "apply",
+            "color",
+            "black",
+            "white",
+            "blur",
+            "crop",
+        )
         edit_prompt = prompt if any(w in prompt.lower() for w in _EDIT_WORDS) else f"Edit this image: {prompt}"
         try:
             output = await self.client.generate_content(edit_prompt, files=files, **kwargs)
@@ -323,8 +402,7 @@ class WebApiAdapter(BaseAdapter):
             err = str(exc).lower()
             if any(w in err for w in ("timeout", "timed out", "time out")):
                 raise Exception(
-                    "Image editing timed out. "
-                    "Gemini was still processing — try again (it usually succeeds on a retry)."
+                    "Image editing timed out. Gemini was still processing — try again (it usually succeeds on a retry)."
                 ) from exc
             raise
         images = getattr(output, "images", []) or []
@@ -342,6 +420,7 @@ class WebApiAdapter(BaseAdapter):
                 raw_url = getattr(image, "url", None)
                 if raw_url:
                     from backend.app.utils.media import download_to_uploads
+
                     local = await download_to_uploads(raw_url)
                     urls.append({"url": local})
 
@@ -376,13 +455,13 @@ class WebApiAdapter(BaseAdapter):
             url = getattr(video, "url", None)
             if url:
                 from backend.app.utils.media import download_to_uploads
+
                 local_url = await download_to_uploads(url)
                 local_urls.append(local_url)
 
         if not local_urls:
             raise Exception(
-                "Gemini returned no video results. "
-                "Note: Video generation is experimental in the web interface."
+                "Gemini returned no video results. Note: Video generation is experimental in the web interface."
             )
 
         return VideoResult(
@@ -392,7 +471,10 @@ class WebApiAdapter(BaseAdapter):
 
     async def get_limits(self) -> Dict[str, Any]:
         """WebAPI adapter doesn't directly support usage limits retrieval in the same way."""
-        return {"status": "not_supported_by_adapter", "message": "Usage limits checking is primarily supported via the mcpcli adapter."}
+        return {
+            "status": "not_supported_by_adapter",
+            "message": "Usage limits checking is primarily supported via the mcpcli adapter.",
+        }
 
     # ------------------------------------------------------------------
     # Model listing & health

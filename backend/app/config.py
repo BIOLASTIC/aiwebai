@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     DEFAULT_ADMIN_PASSWORD: str = "111111"
     DEFAULT_COMPAT_ADMIN_EMAIL: str = "admin@local"
     DEFAULT_API_KEY_LABEL: str = "Default Gateway Key"
-    DEFAULT_API_KEY: str = "sk-pXHS7Y5hP2f-6EEFHn_pVAUm_5mtFZmG3s43e38SbYc"
+    DEFAULT_API_KEY: str = "sk-example-fake-key-for-demo-purposes-only"
     DEFAULT_TEST_API_KEY: str = "sk-JfDMyHics_B4qhvoFAqaxFzs1obOqIYAjb8jb9uRk7g"
 
     GEMINI_COOKIE_1PSID: Optional[str] = None

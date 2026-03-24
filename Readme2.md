@@ -31,6 +31,6 @@ API Base (Backend): http://192.168.88.81:6400
 Swagger Docs: http://192.168.88.81:6400/docs
 Admin Email: admin@local.host
 Admin Password: 111111
-sk-pXHS7Y5hP2f-6EEFHn_pVAUm_5mtFZmG3s43e38SbYc
+sk-example-fake-key-for-demo-purposes-only
 
-sk-pXHS7Y5hP2f-6EEFHn_pVAUm_5mtFZmG3s43e38SbYc
+sk-example-fake-key-for-demo-purposes-only
