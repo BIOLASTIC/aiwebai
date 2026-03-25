@@ -62,6 +62,8 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: List[str] = ["*"]
 
+    BASE_URL: str = "http://localhost:6400"
+
     LOG_FILE: str = str(LOGS_DIR / "gateway.log")
     LOG_ROTATION: str = "50MB"
     LOG_RETENTION: int = 30

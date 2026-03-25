@@ -91,7 +91,9 @@ def _uploads_dir() -> Path:
 
 
 def _local_url(filename: str) -> str:
-    return f"/uploads/{filename}"
+    from backend.app.config import settings
+
+    return f"{settings.BASE_URL}/uploads/{filename}"
 
 
 class WebApiAdapter(BaseAdapter):

@@ -39,6 +39,23 @@ _ADAPTER_MISSING_CAPS: Dict[type, Dict[str, str]] = {
 }
 
 
+# Model prefix for forcing adapter selection
+def _parse_model_prefix(model: str | None) -> tuple[str | None, str]:
+    """Parse model name for adapter prefix. Returns (adapter_name, clean_model_name)."""
+    if not model:
+        return None, model
+
+    model = model.strip()
+    if model.startswith("webapi-"):
+        return "webapi", model[7:]  # Remove "webapi-" prefix
+    elif model.startswith("mcpcli-"):
+        return "mcpcli", model[7:]  # Remove "mcpcli-" prefix
+    elif model.startswith("mcp-"):
+        return "mcpcli", model[4:]  # Also support "mcp-" shorthand
+
+    return None, model
+
+
 def _resolve_forced_adapter(adapter_param: str | None, all_adapters: List[BaseAdapter]) -> BaseAdapter | None:
     """Return a specific adapter instance based on the forced adapter name, or None if not applicable."""
     if adapter_param is None:
@@ -51,10 +68,7 @@ def _resolve_forced_adapter(adapter_param: str | None, all_adapters: List[BaseAd
             return a
     raise HTTPException(
         status_code=400,
-        detail=(
-            f"Adapter '{adapter_param}' is not available. "
-            "No active account of that type is configured."
-        ),
+        detail=(f"Adapter '{adapter_param}' is not available. No active account of that type is configured."),
     )
 
 
@@ -113,10 +127,21 @@ class AdapterRouter:
 
     async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         from backend.app.accounts.manager import account_manager
+
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
+
+        # Parse model prefix to force adapter selection
+        forced_adapter, clean_model = _parse_model_prefix(request.model)
+        if forced_adapter:
+            request.model = clean_model  # Use clean model name
+
         # For mcpcli-only models, skip webapi adapters
         mcpcli_only = {"imagen-3.0", "veo-2.0", "lyria-1.0"}
         if request.model and request.model in mcpcli_only:
+            candidates = [a for a in all_adapters if isinstance(a, McpCliAdapter)] or all_adapters
+        elif forced_adapter == "webapi":
+            candidates = [a for a in all_adapters if isinstance(a, WebApiAdapter)] or all_adapters
+        elif forced_adapter == "mcpcli":
             candidates = [a for a in all_adapters if isinstance(a, McpCliAdapter)] or all_adapters
         else:
             # Try all webapi adapters first (multi-account fallback for rate limits), then mcpcli
@@ -136,8 +161,10 @@ class AdapterRouter:
                 for aid, adpt in account_manager.adapters.items():
                     if adpt is adapter:
                         from backend.app.db.engine import AsyncSessionLocal
+
                         async with AsyncSessionLocal() as db:
                             from backend.app.db.models import Account
+
                             acct = await db.get(Account, aid)
                             if acct:
                                 response.metadata["account"] = acct.label
@@ -150,9 +177,21 @@ class AdapterRouter:
         raise HTTPException(status_code=502, detail=f"No adapter could complete chat. {tried}")
 
     async def stream_chat(self, request: ChatCompletionRequest) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.app.accounts.manager import account_manager
+
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
+
+        # Parse model prefix to force adapter selection
+        forced_adapter, clean_model = _parse_model_prefix(request.model)
+        if forced_adapter:
+            request.model = clean_model  # Use clean model name
+
         mcpcli_only = {"imagen-3.0", "veo-2.0", "lyria-1.0"}
         if request.model and request.model in mcpcli_only:
+            candidates = [a for a in all_adapters if isinstance(a, McpCliAdapter)] or all_adapters
+        elif forced_adapter == "webapi":
+            candidates = [a for a in all_adapters if isinstance(a, WebApiAdapter)] or all_adapters
+        elif forced_adapter == "mcpcli":
             candidates = [a for a in all_adapters if isinstance(a, McpCliAdapter)] or all_adapters
         else:
             candidates = (
@@ -211,7 +250,9 @@ class AdapterRouter:
             detail=f"No adapter could generate image. {tried}",
         )
 
-    async def edit_image(self, request: ImageGenerationRequest, reference_file: bytes | None = None, adapter: str | None = None) -> Dict[str, Any]:
+    async def edit_image(
+        self, request: ImageGenerationRequest, reference_file: bytes | None = None, adapter: str | None = None
+    ) -> Dict[str, Any]:
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
 
         if adapter is not None:
@@ -246,7 +287,15 @@ class AdapterRouter:
         tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
         raise HTTPException(status_code=502, detail=f"No adapter could edit image. {tried}")
 
-    async def generate_video(self, prompt: str, model: str | None, account_id: int | None, reference_files: list[Path] | None, options: dict | None, adapter: str | None = None):
+    async def generate_video(
+        self,
+        prompt: str,
+        model: str | None,
+        account_id: int | None,
+        reference_files: list[Path] | None,
+        options: dict | None,
+        adapter: str | None = None,
+    ):
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
 
         if adapter is not None:
