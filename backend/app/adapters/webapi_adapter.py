@@ -125,7 +125,7 @@ class WebApiAdapter(BaseAdapter):
         if self.mock_mode or not self.client or self._initialized:
             return
         try:
-            await self.client.init(timeout=30, auto_close=False, close_delay=300, auto_refresh=False)
+            await self.client.init(timeout=120, auto_close=False, close_delay=300, auto_refresh=False)
             self._initialized = True
         except Exception as e:
             err = str(e).lower()
@@ -284,10 +284,10 @@ class WebApiAdapter(BaseAdapter):
         try:
             output = await asyncio.wait_for(
                 self.client.generate_content(gen_prompt, **kwargs),
-                timeout=90,
+                timeout=300,
             )
         except asyncio.TimeoutError:
-            raise Exception("Gemini image generation timed out (90s). Try again or switch to the mcpcli backend.")
+            raise Exception("Gemini image generation timed out (300s). Try again or switch to the mcpcli backend.")
         images = getattr(output, "images", []) or []
 
         urls = []

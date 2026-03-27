@@ -29,7 +29,7 @@ from .config import settings
 from .db.seed import seed_defaults
 from .logging.structured import logger
 from .middleware.rate_limit import RateLimitMiddleware
-from .middleware.request_logger import RequestLoggerMiddleware
+from .middleware.request_logger import RequestLoggerASGIMiddleware
 from .models.registry import model_registry
 
 
@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
-    app.add_middleware(RequestLoggerMiddleware)
+    app.add_middleware(RequestLoggerASGIMiddleware)
     app.add_middleware(RateLimitMiddleware, requests_per_minute=settings.RATE_LIMIT_PER_MINUTE)
     app.add_middleware(
         CORSMiddleware,

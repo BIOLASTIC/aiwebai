@@ -93,32 +93,25 @@ class AdapterRouter:
         if not adapters:
             return self.mock_adapter
 
-        # Priority 1: If model is imagen or veo, prefer McpCliAdapter
-        if model_alias and ("imagen" in model_alias.lower() or "veo" in model_alias.lower()):
-            for adapter in adapters:
-                if isinstance(adapter, McpCliAdapter):
-                    return adapter
-
+        # Use webapi for all capabilities (images, chat) - mcpcli disabled
         if capability == "chat":
             for adapter in adapters:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
         if capability == "image_edit":
-            # Image editing requires webapi (Gemini Advanced) — mcpcli cannot edit images
+            # Image editing requires webapi (Gemini Advanced)
             for adapter in adapters:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
         if capability == "image":
-            # Prefer McpCliAdapter for generation — webapi requires Gemini Advanced subscription
-            for adapter in adapters:
-                if isinstance(adapter, McpCliAdapter):
-                    return adapter
+            # Use webapi for image generation
             for adapter in adapters:
                 if isinstance(adapter, WebApiAdapter):
                     return adapter
         if capability in {"video", "music", "research"}:
+            # Use webapi - mcpcli disabled
             for adapter in adapters:
-                if isinstance(adapter, McpCliAdapter):
+                if isinstance(adapter, WebApiAdapter):
                     return adapter
         return adapters[0]
 
@@ -219,20 +212,18 @@ class AdapterRouter:
             _assert_capability(forced, "image")
             return await forced.generate_image(request)
 
-        # Build ordered list: account-specific first, then model-preference, then rest
+        # Build ordered list: webapi only (mcpcli disabled)
         ordered: List[BaseAdapter] = []
         if request.account_id:
             acct_adapter = account_manager.get_adapter_for_account(request.account_id)
             if acct_adapter:
                 ordered.append(acct_adapter)
 
-        # Route by model first (imagen -> McpCliAdapter, others -> WebApiAdapter)
-        preferred_adapter = self.get_best_adapter("image", request.model)
-        if preferred_adapter not in ordered:
-            ordered.append(preferred_adapter)
-        for a in all_adapters:
-            if a not in ordered:
-                ordered.append(a)
+        # Use webapi adapter only for image generation
+        for adapter in all_adapters:
+            if isinstance(adapter, WebApiAdapter):
+                ordered.append(adapter)
+                break
 
         errors: Dict[str, str] = {}
         for adpt in ordered:
@@ -303,21 +294,15 @@ class AdapterRouter:
             _assert_capability(forced, "video")
             return await forced.generate_video(prompt, model, account_id, reference_files, options)
 
-        if account_id:
-            acct_adapter = account_manager.get_adapter_for_account(account_id)
-            if acct_adapter:
-                return await acct_adapter.generate_video(prompt, model, account_id, reference_files, options)
+        # Use webapi only (mcpcli disabled)
+        for adpt in all_adapters:
+            if isinstance(adpt, WebApiAdapter):
+                try:
+                    return await adpt.generate_video(prompt, model, account_id, reference_files, options)
+                except Exception as exc:
+                    raise HTTPException(status_code=502, detail=f"webapi: {exc}")
 
-        best = self.get_best_adapter("video", model)
-        errors: Dict[str, str] = {}
-        for adpt in [best] + [a for a in all_adapters if a is not best]:
-            try:
-                return await adpt.generate_video(prompt, model, account_id, reference_files, options)
-            except Exception as exc:
-                name = _ADAPTER_DISPLAY_NAMES.get(type(adpt), str(type(adpt)))
-                errors[name] = str(exc)
-        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
-        raise HTTPException(status_code=502, detail=f"No adapter could generate video. {tried}")
+        raise HTTPException(status_code=502, detail="No webapi adapter available for video generation")
 
     async def generate_music(self, prompt: str, account_id: int | None = None, adapter: str | None = None) -> str:
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
@@ -327,21 +312,15 @@ class AdapterRouter:
             _assert_capability(forced, "music")
             return await forced.generate_music(prompt)
 
-        if account_id:
-            acct_adapter = account_manager.get_adapter_for_account(account_id)
-            if acct_adapter:
-                return await acct_adapter.generate_music(prompt)
+        # Use webapi only (mcpcli disabled)
+        for adpt in all_adapters:
+            if isinstance(adpt, WebApiAdapter):
+                try:
+                    return await adpt.generate_music(prompt)
+                except Exception as exc:
+                    raise HTTPException(status_code=502, detail=f"webapi: {exc}")
 
-        best = self.get_best_adapter("music")
-        errors: Dict[str, str] = {}
-        for adpt in [best] + [a for a in all_adapters if a is not best]:
-            try:
-                return await adpt.generate_music(prompt)
-            except Exception as exc:
-                name = _ADAPTER_DISPLAY_NAMES.get(type(adpt), str(type(adpt)))
-                errors[name] = str(exc)
-        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
-        raise HTTPException(status_code=502, detail=f"No adapter could generate music. {tried}")
+        raise HTTPException(status_code=502, detail="No webapi adapter available for music generation")
 
     async def generate_research(self, prompt: str, account_id: int | None = None, adapter: str | None = None) -> str:
         all_adapters = account_manager.get_all_adapters() or [self.mock_adapter]
@@ -351,21 +330,15 @@ class AdapterRouter:
             _assert_capability(forced, "research")
             return await forced.deep_research(prompt)
 
-        if account_id:
-            acct_adapter = account_manager.get_adapter_for_account(account_id)
-            if acct_adapter:
-                return await acct_adapter.deep_research(prompt)
+        # Use webapi only (mcpcli disabled)
+        for adpt in all_adapters:
+            if isinstance(adpt, WebApiAdapter):
+                try:
+                    return await adpt.deep_research(prompt)
+                except Exception as exc:
+                    raise HTTPException(status_code=502, detail=f"webapi: {exc}")
 
-        best = self.get_best_adapter("research")
-        errors: Dict[str, str] = {}
-        for adpt in [best] + [a for a in all_adapters if a is not best]:
-            try:
-                return await adpt.deep_research(prompt)
-            except Exception as exc:
-                name = _ADAPTER_DISPLAY_NAMES.get(type(adpt), str(type(adpt)))
-                errors[name] = str(exc)
-        tried = "; ".join(f"{k}: {v}" for k, v in errors.items()) if errors else "no adapters available"
-        raise HTTPException(status_code=502, detail=f"No adapter could generate research. {tried}")
+        raise HTTPException(status_code=502, detail="No webapi adapter available for research")
 
 
 adapter_router = AdapterRouter()

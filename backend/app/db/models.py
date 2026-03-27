@@ -82,6 +82,10 @@ class RequestLog(Base):
     retry_count = Column(Integer, default=0)
     prompt_hash = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    request_body = Column(Text, nullable=True)
+    response_body = Column(Text, nullable=True)
+    request_headers = Column(Text, nullable=True)
+    method = Column(String, nullable=True)
 
 
 class Job(Base):
@@ -186,5 +190,3 @@ class Webhook(Base):
     secret = Column(String)
     status = Column(String, default="active")
     created_at = Column(DateTime, default=datetime.utcnow)
-
-

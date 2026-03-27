@@ -407,7 +407,29 @@ All features from the original Implenent.md plan have been successfully implemen
 ✅ **Database Operations**: All CRUD operations and event tracking functional
 ✅ **Production Readiness**: All services operational on 0.0.0.0 binding, accessible externally
 
-(Updated: March 17, 2026 - 100% Complete)### Fixes applied (March 25, 2026 - batch 13 — stability + mock mode + Paperclip flow):
+(Updated: March 25, 2026 - 100% Complete)### Fixes applied (March 25, 2026 - batch 16 — logs page + FULL response capture):
+- Fixed Logs.tsx: Added new fields (request_body, response_body, request_headers, method) from RequestLog model
+- Added date-fns-tz package for Asia/Kolkata timezone timestamps
+- Implemented ASGI-level middleware to capture FULL request and response bodies
+- Response body NOW CAPTURED for ALL responses (200, 400, 422, 500, etc.)
+- Logs modal shows: Status, Method, Response Time, Model, Time (Asia/Kolkata), Endpoint, Request Headers, Request Body, Response Body
+- The middleware intercepts at ASGI level, reads full request body, replays it to FastAPI, and captures response body before sending to client
+
+### Fixes applied (March 25, 2026 - batch 15 — webapi only for image generation):
+- Disabled mcpcli adapter: removed mcpcli from image/video/music/research routing
+- All generation requests now use webapi adapter only
+- Image generation verified working: Jobs 17, 18, 19, 20, 21 completed successfully
+- Images saved to uploads directory and accessible via HTTP
+- Note: gemini-webapi may have intermittent "Stream interrupted" errors due to network instability
+
+### Fixes applied (March 25, 2026 - batch 14 — image generation via webapi):
+- Fixed image generation routing: increased webapi adapter timeout from 90s to 300s for image generation (takes ~90-120s)
+- Fixed init timeout: increased client init timeout from 30s to 120s
+- Added cookie credentials to mcpcli account: synced cookies from webapi account to enable fallback
+- Verified image generation works: Jobs 17, 18, 19 all completed successfully with real images
+- Images saved to uploads directory and accessible via HTTP
+
+### Fixes applied (March 25, 2026 - batch 13 — stability + mock mode + Paperclip flow):
 - Fixed WebApiAdapter mock mode: `_require_client` now correctly allows mock mode when credentials are missing, and methods return realistic mock responses for chat, streaming, image generation, and image editing. This fixes the fallback loop where `webapi` would error and trigger `mcpcli` (which requires real cookies).
 - Verified "Paperclip" flow: successful file upload (`/v1/files`) and integration with native generation tasks (`/native/tasks/image`) using `reference_file_ids`.
 - Verified system stability: All services (API, Web UI, MCP Server) running and responding correctly on `0.0.0.0` bindings.
